@@ -6,8 +6,12 @@
 
 // =========================================================================
 // MANUAL BACKEND CONFIGURATION INSTRUCTIONS:
-// To connect your real Supabase project, input your project URL and Key below.
-// Leave empty strings to run in encrypted local P2P WebRTC / WebSocket mode.
+// 1. Go to https://supabase.com and sign in to your project dashboard.
+// 2. Click the gear/settings icon (⚙️ Project Settings) in the bottom left sidebar.
+// 3. Click on "Data API" (or "API") under Configuration.
+// 4. Copy your "Project URL" into MANUAL_SUPABASE_URL below.
+// 5. Under "Project API keys", copy your "anon / public" key into MANUAL_SUPABASE_ANON_KEY below.
+// Note: If left empty (""), the app runs smoothly in local/broadcast P2P mode!
 // =========================================================================
 const MANUAL_SUPABASE_URL = "https://fwwvksyewbdfdyegzgfz.supabase.co"
 const MANUAL_SUPABASE_ANON_KEY = "sb_publishable_IED8Q0cnxphV6LWsaOV9cg_qChpAX8H"
@@ -171,6 +175,27 @@ function showToast(message, type = 'info', duration = 4000) {
       toast.style.transition = 'all 0.3s ease';
       setTimeout(() => toast.remove(), 300);
     }, duration);
+  }
+}
+
+function showNativeNotification(title, body) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission === 'granted') {
+    const options = {
+      body: body || 'Open B612 to view your room!',
+      icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">❤️</text></svg>',
+      badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">❤️</text></svg>',
+      vibrate: [200, 100, 200]
+    };
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(reg => {
+        reg.showNotification(title || 'B612 ❤️', options).catch(() => {});
+      }).catch(() => {
+        try { new Notification(title || 'B612 ❤️', options); } catch (e) {}
+      });
+    } else {
+      try { new Notification(title || 'B612 ❤️', options); } catch (e) {}
+    }
   }
 }
 
@@ -517,13 +542,16 @@ function setupRealtimeSubscription() {
 function handleIncomingPayload(data) {
   if (!data) return;
   const { type, content, sender, timestamp } = data;
+  if (sender === state.userName) return; // ignore self broadcast echoes
   
   appendFeedItem(type, content, sender || 'Partner', new Date(timestamp || Date.now()));
   
   if (type === 'heart') {
     showToast(`❤️ Heart Page received from ${sender || 'Partner'}!`, 'success');
+    showNativeNotification(`❤️ Heart Page!`, `${sender || 'Partner'} sent you a giant heart!`);
   } else if (type === 'message') {
     showToast(`💌 New message from ${sender || 'Partner'}: "${content}"`, 'info');
+    showNativeNotification(`💌 ${sender || 'Partner'}`, content);
   }
 }
 
@@ -695,12 +723,31 @@ function appendFeedItem(type, content, sender, timeObj, animate = true) {
     elements.videoChatFeed.scrollTop = elements.videoChatFeed.scrollHeight;
   }
 
-  // Text To Speech (TTS) for messages (partner AND self)
+  // Text To Speech (TTS) for messages using distinct voices without prefix
   if (state.ttsEnabled && type === 'message' && ('speechSynthesis' in window)) {
     try {
       const cleanText = content.replace(/^.*?: /, '');
-      const prefix = isSelf ? "You say: " : `${sender} says: `;
-      const utterance = new SpeechSynthesisUtterance(`${prefix}${cleanText}`);
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+      const voices = window.speechSynthesis.getVoices() || [];
+      if (voices.length > 0) {
+        const langVoices = voices.filter(v => v.lang.startsWith(navigator.language?.slice(0, 2) || 'en'));
+        const pool = langVoices.length >= 2 ? langVoices : voices;
+        if (isSelf) {
+          utterance.voice = pool[0];
+          utterance.pitch = 1.08;
+        } else {
+          // Select a distinctly different voice for partner messages
+          const diffVoice = pool.find(v => v !== pool[0]) || voices.find(v => v !== pool[0]);
+          if (diffVoice) {
+            utterance.voice = diffVoice;
+            utterance.pitch = 0.92;
+          } else {
+            utterance.pitch = 0.82;
+          }
+        }
+      } else {
+        utterance.pitch = isSelf ? 1.08 : 0.82;
+      }
       window.speechSynthesis.speak(utterance);
     } catch (err) {
       console.warn('TTS Speech error:', err);
@@ -764,15 +811,17 @@ function setupPeerConnection() {
   // Handle incoming remote stream
   state.peerConnection.ontrack = (event) => {
     const track = event.track;
-    if (track.kind === 'video' && (track.label?.toLowerCase().includes('screen') || track.label?.toLowerCase().includes('window') || state.isPlayTogether)) {
+    if (track.kind === 'video' && (track.label?.toLowerCase().includes('screen') || track.label?.toLowerCase().includes('window') || state.partnerScreenSharing)) {
       if (elements.screenShareVideo && elements.screenShareVideo.srcObject !== event.streams[0]) {
         elements.screenShareVideo.srcObject = event.streams[0];
+        elements.screenShareVideo.play().catch(e => console.debug(e));
         elements.screenShareContainer?.classList.remove('hidden');
         showToast('Screen share connected! 🖥️', 'success');
       }
     } else {
       if (elements.remoteVideo.srcObject !== event.streams[0]) {
         elements.remoteVideo.srcObject = event.streams[0];
+        elements.remoteVideo.play().catch(e => console.debug(e));
         if (elements.remoteWaitingOverlay) elements.remoteWaitingOverlay.style.display = 'none';
         showToast('Partner connected to video stream! 📹❤️', 'success');
       }
@@ -882,6 +931,7 @@ async function handleSignalingMessage(data) {
     if (state.partnerScreenSharing) {
       if (elements.screenShareVideo && elements.remoteVideo) {
         elements.screenShareVideo.srcObject = elements.remoteVideo.srcObject;
+        elements.screenShareVideo.play().catch(e => console.debug(e));
       }
       elements.screenShareContainer?.classList.remove('hidden');
     } else {
@@ -940,13 +990,31 @@ async function handleSignalingMessage(data) {
       sender: state.userName
     });
 
+    if (state.pendingIceCandidates && state.pendingIceCandidates.length > 0) {
+      for (const cand of state.pendingIceCandidates) {
+        try { await state.peerConnection.addIceCandidate(new RTCIceCandidate(cand)); } catch (e) {}
+      }
+      state.pendingIceCandidates = [];
+    }
+
   } else if (data.type === 'answer' && state.peerConnection) {
     await state.peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
-  } else if (data.type === 'ice-candidate' && state.peerConnection) {
-    try {
-      await state.peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
-    } catch (e) {
-      console.warn('ICE add error:', e);
+    if (state.pendingIceCandidates && state.pendingIceCandidates.length > 0) {
+      for (const cand of state.pendingIceCandidates) {
+        try { await state.peerConnection.addIceCandidate(new RTCIceCandidate(cand)); } catch (e) {}
+      }
+      state.pendingIceCandidates = [];
+    }
+  } else if (data.type === 'ice-candidate') {
+    if (state.peerConnection && state.peerConnection.remoteDescription) {
+      try {
+        await state.peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+      } catch (e) {
+        console.warn('ICE add error:', e);
+      }
+    } else {
+      if (!state.pendingIceCandidates) state.pendingIceCandidates = [];
+      state.pendingIceCandidates.push(data.candidate);
     }
   } else if (data.type === 'end-call') {
     showToast('Partner left the video call.', 'info');
@@ -1067,6 +1135,7 @@ async function handleEnablePush(silent = false) {
     }
 
     if (!silent) showToast('🔔 Push Notifications enabled for this device!', 'success');
+    showNativeNotification('🔔 Push Notifications Active', 'You will now receive notifications when your partner sends pages or calls!');
   } catch (err) {
     console.error('Push setup failed:', err);
     if (!silent) showToast('Could not register push notifications.', 'error');
@@ -1139,6 +1208,12 @@ async function answerPendingVideoCall(data) {
       sdp: answer,
       sender: state.userName
     });
+    if (state.pendingIceCandidates && state.pendingIceCandidates.length > 0) {
+      for (const cand of state.pendingIceCandidates) {
+        try { await state.peerConnection.addIceCandidate(new RTCIceCandidate(cand)); } catch (e) {}
+      }
+      state.pendingIceCandidates = [];
+    }
     showToast('Joined live video call! Connecting stream...', 'success');
   } catch (err) {
     showToast('Could not access camera/microphone. Please check browser permissions.', 'error');
@@ -1463,7 +1538,10 @@ async function toggleScreenShare() {
       if (sender) {
         await sender.replaceTrack(screenTrack);
       }
-      if (elements.screenShareVideo) elements.screenShareVideo.srcObject = state.screenStream;
+      if (elements.screenShareVideo) {
+        elements.screenShareVideo.srcObject = state.screenStream;
+        elements.screenShareVideo.play().catch(e => console.debug(e));
+      }
       elements.screenShareContainer?.classList.remove('hidden');
       state.isScreenSharing = true;
       if (elements.toggleScreenBtn) {
