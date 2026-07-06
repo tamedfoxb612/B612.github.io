@@ -655,7 +655,7 @@ async function sendChatMessageText(text) {
 
   if (state.supabase && state.supabase.supabaseUrl !== DEFAULT_SUPABASE_URL) {
     try {
-      await state.supabase.from('messages').insert([{
+      await state.supabase.from('messages').upsert([{
         room_code: state.roomCode,
         type: 'message',
         content: `${state.userName}: ${text}`
