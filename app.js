@@ -580,7 +580,7 @@ function setupRealtimeSubscription() {
   // 3. HTTP Server Relay for cross-device / cross-browser connection
   state.lastPollId = 0;
   state.pollInterval = setInterval(async () => {
-    if (!navigator.onLine) return; // Don't spam fetch if in airplane mode
+    
     try {
       const res = await fetch(`/api/relay?room=${encodeURIComponent(state.roomCode)}&since=${state.lastPollId}`);
       if (res.ok) {
@@ -646,7 +646,7 @@ function handleIncomingPayload(data) {
  * Load past messages from Supabase 'messages' table
  */
 async function loadPastMessages() {
-  if (!state.supabase || state.supabase.supabaseUrl === DEFAULT_SUPABASE_URL) return;
+  if (!state.supabase) return;
   try {
     const { data, error } = await state.supabase
       .from('messages')
@@ -685,7 +685,7 @@ async function handleSendHeart() {
   relaySend(payload);
 
   // Persist to Supabase database
-  if (state.supabase && state.supabase.supabaseUrl !== DEFAULT_SUPABASE_URL) {
+  if (state.supabase) {
     try {
       await state.supabase.from('messages').insert([{
         room_code: state.roomCode,
@@ -724,7 +724,7 @@ async function sendChatMessageText(text) {
 
   relaySend(payload);
 
-  if (state.supabase && state.supabase.supabaseUrl !== DEFAULT_SUPABASE_URL) {
+  if (state.supabase) {
     try {
       await state.supabase.from('messages').insert([{
         room_code: state.roomCode,
@@ -1016,11 +1016,15 @@ function relaySend(payload) {
   if (!payload.id) payload.id = Date.now() + Math.random().toString(36).substring(7);
 
   if (state.channel) {
-    state.channel.send({
-      type: 'broadcast',
-      event: payload.signaling ? 'webrtc_signaling' : 'pager_event',
-      payload: payload
-    });
+    try {
+      state.channel.send({
+        type: 'broadcast',
+        event: payload.signaling ? 'webrtc_signaling' : 'pager_event',
+        payload: payload
+      }).catch(e => console.debug('Supabase send async error:', e));
+    } catch (e) {
+      console.debug('Supabase send sync error:', e);
+    }
   }
   if (window.demoBroadcast) {
     window.demoBroadcast.postMessage(payload);
@@ -1029,13 +1033,12 @@ function relaySend(payload) {
     localStorage.setItem(`b612_relay_${state.roomCode}`, JSON.stringify(payload));
   } catch (e) {}
   
-  if (navigator.onLine) {
+  
     fetch(`/api/relay?room=${encodeURIComponent(state.roomCode)}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     }).catch(() => {});
-  }
 }
 
 function sendSignaling(payload) {

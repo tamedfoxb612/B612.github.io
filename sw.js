@@ -3,12 +3,12 @@
  * Handles background push notifications and asset caching for offline PWA capabilities.
  */
 
-const CACHE_NAME = 'b612-sketch-gradient-v2';
+const CACHE_NAME = 'b612-sketch-gradient-v3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
-  './style.css?v=gradient2',
-  './app.js?v=gradient2',
+  './style.css?v=gradient3',
+  './app.js?v=gradient3',
   './manifest.json',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
 ];
