@@ -13,9 +13,9 @@
 // 5. Under "Project API keys", copy your "anon / public" key into MANUAL_SUPABASE_ANON_KEY below.
 // Note: If left empty (""), the app runs smoothly in local/broadcast P2P mode!
 // =========================================================================
-const MANUAL_SUPABASE_URL = ""; // e.g., "https://fwwvksyewbdfdyegzgfz.supabase.co"
-const MANUAL_SUPABASE_ANON_KEY = ""; // e.g., "sb_publishable_IED8Q0cnxphV6LWsaOV9cg_qChpAX8H"
-const MANUAL_VAPID_PUBLIC_KEY = ""; // e.g., "BKN-p8vqsDGJ2jBjJwgO4QFjerXfPkDAUD6Gk9EAyMlnvOKWtV11UlvzHoC6TqFEXc3nas87Wqq3sjsE7lBYh7I"
+const MANUAL_SUPABASE_URL = "https://fwwvksyewbdfdyegzgfz.supabase.co"; // e.g., "https://abcdefghijklmnop.supabase.co"
+const MANUAL_SUPABASE_ANON_KEY = "sb_publishable_IED8Q0cnxphV6LWsaOV9cg_qChpAX8H"; // e.g., "eyJhbGciOi..."
+const MANUAL_VAPID_PUBLIC_KEY = "BKN-p8vqsDGJ2jBjJwgO4QFjerXfPkDAUD6Gk9EAyMlnvOKWtV11UlvzHoC6TqFEXc3nas87Wqq3sjsE7lBYh7I"; // e.g., "BEl62iUYgUivxIkv69yViEuiBIa-..."
 const DEFAULT_SUPABASE_URL = "";
 
 // State Management
@@ -565,33 +565,35 @@ function handleLeaveRoom() {
 function setupRealtimeSubscription() {
   cleanupRealtimeConnections();
 
-  if (!state.supabase) {
-    // 1. BroadcastChannel for instant local tabs
-    window.demoBroadcast = new BroadcastChannel(`b612_${state.roomCode}`);
-    window.demoBroadcast.onmessage = (event) => processIncomingRelayEvent(event.data);
+  // 1. BroadcastChannel for instant local tabs
+  window.demoBroadcast = new BroadcastChannel(`b612_${state.roomCode}`);
+  window.demoBroadcast.onmessage = (event) => processIncomingRelayEvent(event.data);
 
-    // 2. LocalStorage sync for cross-frame storage events
-    state.storageListener = (e) => {
-      if (e.key === `b612_relay_${state.roomCode}` && e.newValue) {
-        try { processIncomingRelayEvent(JSON.parse(e.newValue)); } catch (err) {}
+  // 2. LocalStorage sync for cross-frame storage events
+  state.storageListener = (e) => {
+    if (e.key === `b612_relay_${state.roomCode}` && e.newValue) {
+      try { processIncomingRelayEvent(JSON.parse(e.newValue)); } catch (err) {}
+    }
+  };
+  window.addEventListener('storage', state.storageListener);
+
+  // 3. HTTP Server Relay for cross-device / cross-browser connection
+  state.lastPollId = 0;
+  state.pollInterval = setInterval(async () => {
+    if (!navigator.onLine) return; // Don't spam fetch if in airplane mode
+    try {
+      const res = await fetch(`/api/relay?room=${encodeURIComponent(state.roomCode)}&since=${state.lastPollId}`);
+      if (res.ok) {
+        const events = await res.json();
+        events.forEach(evt => {
+          if (evt.id > state.lastPollId) state.lastPollId = evt.id;
+          processIncomingRelayEvent(evt);
+        });
       }
-    };
-    window.addEventListener('storage', state.storageListener);
+    } catch (err) {}
+  }, 1000);
 
-    // 3. HTTP Server Relay for cross-device / cross-browser connection
-    state.lastPollId = 0;
-    state.pollInterval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/relay?room=${encodeURIComponent(state.roomCode)}&since=${state.lastPollId}`);
-        if (res.ok) {
-          const events = await res.json();
-          events.forEach(evt => {
-            if (evt.id > state.lastPollId) state.lastPollId = evt.id;
-            processIncomingRelayEvent(evt);
-          });
-        }
-      } catch (err) {}
-    }, 1000);
+  if (!state.supabase) {
     return;
   }
 
@@ -1010,6 +1012,9 @@ function setupPeerConnection(targetPeer = 'partner') {
 }
 
 function relaySend(payload) {
+  if (!payload.timestamp) payload.timestamp = Date.now();
+  if (!payload.id) payload.id = Date.now() + Math.random().toString(36).substring(7);
+
   if (state.channel) {
     state.channel.send({
       type: 'broadcast',
@@ -1021,13 +1026,16 @@ function relaySend(payload) {
     window.demoBroadcast.postMessage(payload);
   }
   try {
-    localStorage.setItem(`b612_relay_${state.roomCode}`, JSON.stringify({ id: Date.now() + Math.random(), ...payload }));
+    localStorage.setItem(`b612_relay_${state.roomCode}`, JSON.stringify(payload));
   } catch (e) {}
-  fetch(`/api/relay?room=${encodeURIComponent(state.roomCode)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  }).catch(() => {});
+  
+  if (navigator.onLine) {
+    fetch(`/api/relay?room=${encodeURIComponent(state.roomCode)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).catch(() => {});
+  }
 }
 
 function sendSignaling(payload) {
