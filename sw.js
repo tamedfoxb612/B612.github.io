@@ -3,7 +3,7 @@
  * Handles background push notifications and asset caching for offline PWA capabilities.
  */
 
-const CACHE_NAME = 'b612-sketch-gradient-v3';
+const CACHE_NAME = 'b612-sketch-gradient-v4';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

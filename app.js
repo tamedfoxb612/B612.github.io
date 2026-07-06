@@ -536,7 +536,7 @@ function processIncomingRelayEvent(data) {
     seenEventIds.delete(first);
   }
   if (data.sender === state.userName) return;
-  if (data.signaling || ['offer', 'answer', 'ice-candidate', 'call-invite', 'call-accept', 'call-decline', 'theme-change', 'cam-toggle', 'screen-share-toggle', 'toggle-circle-speech', 'end-call'].includes(data.type)) {
+  if (data.signaling || ['offer', 'answer', 'ice-candidate', 'call-invite', 'call-accept', 'call-decline', 'theme-change', 'cam-toggle', 'screen-share-toggle', 'toggle-circle-speech', 'end-call', 'clear-messages', 'clear-video-messages'].includes(data.type)) {
     handleSignalingMessage(data);
   } else {
     handleIncomingPayload(data);
@@ -624,7 +624,7 @@ function setupRealtimeSubscription() {
  */
 function handleIncomingPayload(data) {
   if (!data) return;
-  if (data.signaling || ['offer', 'answer', 'ice-candidate', 'call-invite', 'call-accept', 'call-decline', 'theme-change', 'cam-toggle', 'screen-share-toggle', 'toggle-circle-speech', 'end-call'].includes(data.type)) {
+  if (data.signaling || ['offer', 'answer', 'ice-candidate', 'call-invite', 'call-accept', 'call-decline', 'theme-change', 'cam-toggle', 'screen-share-toggle', 'toggle-circle-speech', 'end-call', 'clear-messages', 'clear-video-messages'].includes(data.type)) {
     handleSignalingMessage(data);
     return;
   }
@@ -1107,7 +1107,13 @@ function updateSpeechBubblePositions() {
 async function handleSignalingMessage(data) {
   if (!data || data.sender === state.userName) return;
 
-  if (data.type === 'toggle-circle-speech') {
+  if (data.type === 'clear-messages') {
+    clearRoomMessages(false);
+    return;
+  } else if (data.type === 'clear-video-messages') {
+    clearVideoMessages(false);
+    return;
+  } else if (data.type === 'toggle-circle-speech') {
     state.circleSpeechEnabled = data.enabled;
     document.body.classList.toggle('circle-speech-on', state.circleSpeechEnabled);
     if (elements.toggleCircleSpeechBtn) {
@@ -1590,10 +1596,8 @@ function setupPaneDragging(paneEl) {
     startX = clientX;
     startY = clientY;
     
-    const rect = paneEl.getBoundingClientRect();
-    const parentRect = elements.videoPanesWrapper?.getBoundingClientRect() || { left: 0, top: 0 };
-    initialLeft = rect.left - parentRect.left;
-    initialTop = rect.top - parentRect.top;
+    initialLeft = paneEl.offsetLeft;
+    initialTop = paneEl.offsetTop;
   };
 
   const onMove = (e) => {
@@ -1898,22 +1902,29 @@ function applyTheme(themeName, themeLabel, broadcast = true) {
   }
 }
 
-async function clearRoomMessages() {
+async function clearRoomMessages(broadcast = true) {
   if (!elements.chatFeed) return;
   elements.chatFeed.innerHTML = '<div class="empty-feed">Room messages cleared.</div>';
   state.activitiesCount = 0;
   if (elements.feedCount) elements.feedCount.textContent = '0 messages';
   if (state.supabase && state.roomCode) {
     try {
-      await state.supabase.from('messages').delete().eq('room_code', state.roomCode);
+      const { error } = await state.supabase.from('messages').delete().eq('room_code', state.roomCode);
+      if (error) console.warn('Supabase delete error:', error);
     } catch (e) { console.warn(e); }
   }
   showToast('🧹 All room messages deleted!', 'success');
+  if (broadcast) {
+    sendSignaling({ type: 'clear-messages', sender: state.userName });
+  }
 }
 
-function clearVideoMessages() {
+function clearVideoMessages(broadcast = true) {
   if (!elements.videoChatFeed) return;
   elements.videoChatFeed.innerHTML = '';
   showToast('🧹 Video call session messages cleared.');
+  if (broadcast) {
+    sendSignaling({ type: 'clear-video-messages', sender: state.userName });
+  }
 }
 
