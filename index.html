@@ -11,7 +11,8 @@
   <!-- Supabase JS CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   
-  <link rel="stylesheet" href="./style.css?v=gradient3">
+  <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./play-together.css">
 </head>
 <body>
   <!-- Toast Notification Container (No native browser alert/confirm allowed!) -->
@@ -190,6 +191,7 @@
               <button id="toggle-mute-btn" class="btn btn-round-ctrl" title="Mute/Unmute Audio">🎙️</button>
               <button id="toggle-cam-btn" class="btn btn-round-ctrl" title="Turn Camera On/Off">📷</button>
               <button id="toggle-screen-btn" class="btn btn-round-ctrl screen-share-btn" title="Share Screen">🖥️</button>
+              <button id="toggle-play-together-btn" class="btn btn-round-ctrl pt-btn" title="Play Together">🕹️</button>
             </div>
             <div class="chat-toggle-group">
               <button id="toggle-live-chat-btn" class="btn btn-round-ctrl live-chat-toggle" title="Toggle Live Chat">💬</button>
@@ -209,6 +211,36 @@
           <button id="skip-notifs-enter-btn" class="btn btn-decline" style="width: 100%;">Enter Room Without Notifications</button>
         </div>
       </div>
+    </div>
+
+    <!-- Play Together Modal -->
+    <div id="play-together-modal" class="modal-overlay hidden">
+      <div class="modal-card" style="max-width: 800px; width: 90%; max-height: 90vh; display: flex; flex-direction: column;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 12px; margin-bottom: 16px;">
+          <h3 style="margin: 0; font-size: 1.5rem; display: flex; align-items: center; gap: 8px;">🕹️ Play Together</h3>
+          <button id="close-pt-modal-btn" class="btn-icon-small" title="Close">✕</button>
+        </div>
+        
+        <div class="pt-search-box">
+          <input type="text" id="pt-search-input" placeholder="Search Flash games on archive.org..." />
+          <button id="pt-search-btn">Search</button>
+        </div>
+        
+        <div id="pt-status-text"></div>
+        
+        <div id="pt-games-grid" style="overflow-y: auto; flex-grow: 1; padding-right: 8px;">
+          <!-- Games populate here -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Play Together Game Container (Appears in video call) -->
+    <div id="play-together-container" class="hidden" style="position: absolute; top: 10%; left: 50%; transform: translateX(-50%); width: 80%; height: 70%; background: #000; z-index: 1000; border-radius: 12px; border: 2px solid #444; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,0.8);">
+      <div style="background: #222; padding: 8px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #444;">
+        <span style="font-weight: bold; color: white;">🕹️ Playing Together</span>
+        <button id="pt-close-game-btn" class="btn-icon-small" style="background: rgba(255,0,0,0.2); color: #ff4444;" title="Close Game">✕ Close</button>
+      </div>
+      <div id="play-together-player-root" style="flex-grow: 1; position: relative;"></div>
     </div>
   </div>
 
@@ -258,6 +290,8 @@
     </div>
   </aside>
 
-  <script src="./app.js?v=gradient3"></script>
+  <script src="https://unpkg.com/@ruffle-rs/ruffle"></script>
+  <script type="module" src="./play-together.js"></script>
+  <script type="module" src="./app.js"></script>
 </body>
 </html>

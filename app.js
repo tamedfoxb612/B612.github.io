@@ -44,6 +44,7 @@ const state = {
   remoteStreams: {},
   primaryPeer: null
 };
+window.state = state;
 
 // Google STUN Servers for reliable P2P WebRTC connection
 const ICE_SERVERS = {
@@ -1044,6 +1045,7 @@ function relaySend(payload) {
 function sendSignaling(payload) {
   relaySend({ signaling: true, ...payload });
 }
+window.sendSignaling = sendSignaling;
 
 function toggleCircleSpeech(broadcast = true) {
   state.circleSpeechEnabled = !state.circleSpeechEnabled;
@@ -1106,6 +1108,13 @@ function updateSpeechBubblePositions() {
 
 async function handleSignalingMessage(data) {
   if (!data || data.sender === state.userName) return;
+
+  if (data.type === 'pt-action') {
+    if (window.handlePlayTogetherAction) {
+      window.handlePlayTogetherAction(data);
+    }
+    return;
+  }
 
   if (data.type === 'clear-messages') {
     clearRoomMessages(false);
@@ -1537,7 +1546,7 @@ function updateVideoLayout() {
   const wrapper = elements.videoPanesWrapper;
   if (!wrapper) return;
 
-  const isScreenShareMode = state.isScreenSharing || state.partnerScreenSharing;
+  const isScreenShareMode = state.isScreenSharing || state.partnerScreenSharing || state.isPlayTogetherMode;
   document.body.classList.toggle('layout-circles-active', isScreenShareMode);
 
   wrapper.classList.remove('layout-equal', 'layout-enlarged', 'layout-circles');
@@ -1928,3 +1937,6 @@ function clearVideoMessages(broadcast = true) {
   }
 }
 
+
+window.showToast = showToast;
+window.updateVideoLayout = updateVideoLayout;
