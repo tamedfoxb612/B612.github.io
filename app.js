@@ -112,7 +112,14 @@ const elements = {
   minimizeVideoChat: document.getElementById('minimize-video-chat'),
   notifUrgeModal: document.getElementById('notif-urge-modal'),
   enableNotifsEnterBtn: document.getElementById('enable-notifs-enter-btn'),
-  skipNotifsEnterBtn: document.getElementById('skip-notifs-enter-btn')
+  skipNotifsEnterBtn: document.getElementById('skip-notifs-enter-btn'),
+  openSidebarBtnRoom: document.getElementById('open-sidebar-btn-room'),
+  openSidebarBtnVideo: document.getElementById('open-sidebar-btn-video'),
+  closeSidebarBtn: document.getElementById('close-sidebar-btn'),
+  settingsSidebar: document.getElementById('settings-sidebar'),
+  sidebarOverlay: document.getElementById('sidebar-overlay'),
+  toggleLiveChatBtn: document.getElementById('toggle-live-chat-btn'),
+  toggleTtsBtnRoom: document.getElementById('toggle-tts-btn-room')
 };
 
 // Initialize PWA & Service Worker
@@ -205,36 +212,42 @@ function setupEventListeners() {
   elements.toggleCamBtn?.addEventListener('click', toggleCamera);
   elements.toggleScreenBtn?.addEventListener('click', toggleScreenShare);
   
-  // Theme & Console Controls
-  elements.themeColorBtn?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    elements.themeMenu?.classList.toggle('hidden');
-  });
-
-  elements.roomThemeBtn?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    elements.roomThemeMenu?.classList.toggle('hidden');
-  });
-
-  elements.frontThemeBtn?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    elements.frontThemeMenu?.classList.toggle('hidden');
-  });
+  // Sidebar Drawer & Controls
+  const openSidebar = () => {
+    elements.settingsSidebar?.classList.remove('hidden');
+    elements.sidebarOverlay?.classList.remove('hidden');
+  };
+  const closeSidebar = () => {
+    elements.settingsSidebar?.classList.add('hidden');
+    elements.sidebarOverlay?.classList.add('hidden');
+  };
+  elements.openSidebarBtnRoom?.addEventListener('click', openSidebar);
+  elements.openSidebarBtnVideo?.addEventListener('click', openSidebar);
+  elements.closeSidebarBtn?.addEventListener('click', closeSidebar);
+  elements.sidebarOverlay?.addEventListener('click', closeSidebar);
 
   document.querySelectorAll('.theme-item').forEach(btn => {
     btn.addEventListener('click', (e) => {
       handleThemeSelection(e.currentTarget.dataset.theme);
-      elements.themeMenu?.classList.add('hidden');
-      elements.roomThemeMenu?.classList.add('hidden');
-      elements.frontThemeMenu?.classList.add('hidden');
+      closeSidebar();
     });
   });
 
-  elements.clearRoomMessagesBtn?.addEventListener('click', clearRoomMessages);
-  elements.clearVideoMessagesBtn?.addEventListener('click', clearVideoMessages);
+  elements.clearRoomMessagesBtn?.addEventListener('click', () => {
+    clearRoomMessages();
+    closeSidebar();
+  });
+  elements.clearVideoMessagesBtn?.addEventListener('click', () => {
+    clearVideoMessages();
+    closeSidebar();
+  });
   
   elements.toggleCircleSpeechBtn?.addEventListener('click', () => toggleCircleSpeech(true));
   elements.toggleTtsBtn?.addEventListener('click', toggleTts);
+  elements.toggleTtsBtnRoom?.addEventListener('click', toggleTts);
+  elements.toggleLiveChatBtn?.addEventListener('click', () => {
+    elements.videoChatOverlay?.classList.toggle('collapsed');
+  });
   
   // Interactive Click-to-Enlarge & Draggable PiP / Circles
   elements.remoteVideoContainer?.addEventListener('click', () => handlePaneClick('remote'));
@@ -246,24 +259,26 @@ function setupEventListeners() {
   setupManualResizer();
   window.addEventListener('resize', updateSpeechBubblePositions);
 
-  // Double tap / double click on video wrapper toggles Fullscreen
+  // Double tap / double click on video UI toggles Fullscreen
   let lastTapTime = 0;
-  if (elements.videoPanesWrapper) {
-    elements.videoPanesWrapper.addEventListener('dblclick', (e) => {
-      if (e.target?.closest('button') || e.target?.closest('input') || e.target?.closest('.video-chat-form')) return;
-      if (document.fullscreenElement) exitImmersiveFullscreen(); else toggleImmersiveFullscreen();
-    });
-    elements.videoPanesWrapper.addEventListener('touchend', (e) => {
-      if (e.target?.closest('button') || e.target?.closest('input') || e.target?.closest('.video-chat-form')) return;
-      const now = Date.now();
-      if (now - lastTapTime < 350 && now - lastTapTime > 40) {
-        e.preventDefault();
-        if (document.fullscreenElement) exitImmersiveFullscreen(); else toggleImmersiveFullscreen();
-        lastTapTime = 0;
-      } else {
-        lastTapTime = now;
-      }
-    });
+  const dblHandler = (e) => {
+    if (e.target?.closest('button') || e.target?.closest('input') || e.target?.closest('.video-chat-form') || e.target?.closest('.video-top-bar') || e.target?.closest('.video-bottom-bar')) return;
+    if (document.fullscreenElement || state.isImmersiveMode) exitImmersiveFullscreen(); else toggleImmersiveFullscreen();
+  };
+  const touchHandler = (e) => {
+    if (e.target?.closest('button') || e.target?.closest('input') || e.target?.closest('.video-chat-form') || e.target?.closest('.video-top-bar') || e.target?.closest('.video-bottom-bar')) return;
+    const now = Date.now();
+    if (now - lastTapTime < 350 && now - lastTapTime > 40) {
+      e.preventDefault();
+      if (document.fullscreenElement || state.isImmersiveMode) exitImmersiveFullscreen(); else toggleImmersiveFullscreen();
+      lastTapTime = 0;
+    } else {
+      lastTapTime = now;
+    }
+  };
+  if (elements.videoUi) {
+    elements.videoUi.addEventListener('dblclick', dblHandler);
+    elements.videoUi.addEventListener('touchend', touchHandler);
   }
 
   document.addEventListener('fullscreenchange', () => {
@@ -380,12 +395,12 @@ async function handleJoinRoom() {
  */
 async function getOrAcquireLocalStream() {
   if (state.localStream && state.localStream.active) {
-    state.localStream.getTracks().forEach(t => t.enabled = true);
-    state.isMuted = false;
-    state.isCamOff = false;
+    state.localStream.getAudioTracks().forEach(t => t.enabled = !state.isMuted);
+    state.localStream.getVideoTracks().forEach(t => t.enabled = !state.isCamOff);
     if (elements.localVideo && elements.localVideo.srcObject !== state.localStream) {
       elements.localVideo.srcObject = state.localStream;
     }
+    updateControlEmojis();
     return state.localStream;
   }
   try {
@@ -394,27 +409,37 @@ async function getOrAcquireLocalStream() {
       audio: true 
     });
     state.localStream = stream;
+    stream.getAudioTracks().forEach(t => t.enabled = !state.isMuted);
+    stream.getVideoTracks().forEach(t => t.enabled = !state.isCamOff);
     if (elements.localVideo) elements.localVideo.srcObject = stream;
+    updateControlEmojis();
     return stream;
   } catch (err1) {
     console.warn('Strict video/audio getUserMedia failed, trying relaxed constraints:', err1);
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       state.localStream = stream;
+      stream.getAudioTracks().forEach(t => t.enabled = !state.isMuted);
+      stream.getVideoTracks().forEach(t => t.enabled = !state.isCamOff);
       if (elements.localVideo) elements.localVideo.srcObject = stream;
+      updateControlEmojis();
       return stream;
     } catch (err2) {
       console.warn('Video+audio failed, trying video only:', err2);
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         state.localStream = stream;
+        stream.getVideoTracks().forEach(t => t.enabled = !state.isCamOff);
         if (elements.localVideo) elements.localVideo.srcObject = stream;
+        updateControlEmojis();
         return stream;
       } catch (err3) {
         console.warn('Video failed, trying audio only:', err3);
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
         state.localStream = stream;
+        stream.getAudioTracks().forEach(t => t.enabled = !state.isMuted);
         if (elements.localVideo) elements.localVideo.srcObject = stream;
+        updateControlEmojis();
         return stream;
       }
     }
@@ -1085,6 +1110,7 @@ function cleanupMedia() {
   document.querySelectorAll('.extra-remote-pane').forEach(el => el.remove());
 
   elements.videoUi?.classList.add('hidden');
+  if (elements.localVideo) elements.localVideo.srcObject = null;
   if (elements.remoteVideo) elements.remoteVideo.srcObject = null;
   if (elements.screenShareVideo) elements.screenShareVideo.srcObject = null;
   if (elements.screenShareContainer) elements.screenShareContainer.classList.add('hidden');

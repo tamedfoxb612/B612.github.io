@@ -65,22 +65,12 @@
           <span id="feed-count" class="activities-count">0 messages</span>
         </div>
         <div class="room-top-actions">
-          <!-- Button at topright to notify video call with accept or decline -->
-          <button id="notify-call-btn" class="btn btn-call-invite" title="Enter Video Call Room">
-            <span class="btn-text">Enter Video Call </span><span class="btn-icon">📹</span>
-          </button>
-          <div class="preset-dropdown-wrapper">
-            <button id="room-theme-btn" class="btn btn-icon-small" title="Change Page Theme">🎨</button>
-            <div id="room-theme-menu" class="presets-menu hidden">
-              <button class="theme-item" data-theme="slate">🤎 Warm Slate</button>
-              <button class="theme-item" data-theme="electric-blue">⚡ Electric Blue</button>
-              <button class="theme-item" data-theme="pastel-blue">🫧 Pastel Blue</button>
-              <button class="theme-item" data-theme="glass">🔮 Transparent Glass</button>
-              <button class="theme-item" data-theme="purple-yellow">💜 / 💛 Purple or Yellow (50% Chance)</button>
-              <button class="theme-item" data-theme="matcha-strawberry">🍵 / 🍓 Matcha or Strawberry (50% Chance)</button>
-            </div>
-          </div>
-          <button id="clear-room-messages-btn" class="btn btn-icon-small" title="Clear All Room Messages">🗑️</button>
+          <!-- Button at topright to enter video call room -->
+          <button id="notify-call-btn" class="btn btn-icon-small btn-call-invite" title="Enter Video Call Room">📹</button>
+          <!-- Button to toggle text to speech for messages -->
+          <button id="toggle-tts-btn-room" class="btn btn-icon-small toggle-tts-trigger" title="Toggle Message TTS">🔊</button>
+          <!-- 3 line slider button to open sidebar -->
+          <button id="open-sidebar-btn-room" class="btn btn-icon-small open-sidebar-trigger" title="Open Settings & Tools">☰</button>
         </div>
       </header>
 
@@ -125,37 +115,15 @@
         <header class="video-top-bar">
           <!-- Leave call button on top left -->
           <div class="top-left-controls">
-            <button id="end-call-btn" class="btn btn-end-call-top">
-              <span class="btn-icon">🚪</span> <span class="btn-text">Leave Call</span>
-            </button>
+            <button id="end-call-btn" class="btn btn-icon-small btn-leave" title="Leave Call">🚪</button>
           </div>
 
           <!-- Top Right Controls -->
           <div class="top-right-controls">
-            <!-- Theme & Camera Off Color dropdown -->
-            <div class="preset-dropdown-wrapper">
-              <button id="theme-color-btn" class="btn btn-top-action" title="Change Theme & Camera Off Color">
-                <span class="btn-icon">🎨</span> <span class="btn-text">Theme: Slate</span>
-              </button>
-              <div id="theme-menu" class="presets-menu hidden">
-                <button class="theme-item" data-theme="slate">🤎 Warm Slate</button>
-                <button class="theme-item" data-theme="electric-blue">⚡ Electric Blue</button>
-                <button class="theme-item" data-theme="pastel-blue">🫧 Pastel Blue</button>
-                <button class="theme-item" data-theme="glass">🔮 Transparent Glass</button>
-                <button class="theme-item" data-theme="purple-yellow">💜 / 💛 Purple or Yellow (50% Chance)</button>
-                <button class="theme-item" data-theme="matcha-strawberry">🍵 / 🍓 Matcha or Strawberry (50% Chance)</button>
-              </div>
-            </div>
-
-            <!-- Button in top right to toggle circle head speech bubbles -->
-            <button id="toggle-circle-speech-btn" class="btn btn-top-action active" title="Toggle Circle Head Speech Bubbles">
-              <span class="btn-icon">💭</span> <span class="btn-text">Circle Speech: On</span>
-            </button>
-
             <!-- Button in top right to toggle text to speech for messages -->
-            <button id="toggle-tts-btn" class="btn btn-top-action" title="Toggle Message TTS">
-              <span class="btn-icon">🔊</span> <span class="btn-text">TTS: Off</span>
-            </button>
+            <button id="toggle-tts-btn" class="btn btn-icon-small toggle-tts-trigger" title="Toggle Message TTS">🔊</button>
+            <!-- 3 line slider button to open sidebar -->
+            <button id="open-sidebar-btn-video" class="btn btn-icon-small open-sidebar-trigger" title="Open Settings & Tools">☰</button>
           </div>
         </header>
 
@@ -219,15 +187,59 @@
           </form>
         </aside>
 
-        <!-- Bottom Bar Controls (Audio, Video, Screen Share) -->
+        <!-- Bottom Bar Controls (Audio, Video, Screen Share, Live Chat) -->
         <footer class="video-bottom-bar">
-          <div class="bottom-control-buttons">
-            <button id="toggle-mute-btn" class="btn btn-round-ctrl" title="Mute/Unmute Audio">🎙️</button>
-            <button id="toggle-cam-btn" class="btn btn-round-ctrl" title="Turn Camera On/Off">📷</button>
-            <button id="toggle-screen-btn" class="btn btn-round-ctrl screen-share-btn" title="Share Screen">🖥️</button>
+          <div class="video-bottom-inner">
+            <div class="media-controls-group">
+              <button id="toggle-mute-btn" class="btn btn-round-ctrl" title="Mute/Unmute Audio">🎙️</button>
+              <button id="toggle-cam-btn" class="btn btn-round-ctrl" title="Turn Camera On/Off">📷</button>
+              <button id="toggle-screen-btn" class="btn btn-round-ctrl screen-share-btn" title="Share Screen">🖥️</button>
+            </div>
+            <div class="chat-toggle-group">
+              <button id="toggle-live-chat-btn" class="btn btn-round-ctrl live-chat-toggle" title="Toggle Live Chat">💬</button>
+            </div>
           </div>
         </footer>
     </div>
+
+    <!-- Slide-out Settings Sidebar Drawer -->
+    <div id="sidebar-overlay" class="sidebar-overlay hidden"></div>
+    <aside id="settings-sidebar" class="settings-sidebar hidden">
+      <div class="sidebar-header">
+        <h3>Settings & Tools</h3>
+        <button id="close-sidebar-btn" class="btn-icon-small" title="Close Sidebar">✕</button>
+      </div>
+      <div class="sidebar-content">
+        <div class="sidebar-section">
+          <label class="sidebar-label">🎨 Page / Room Theme</label>
+          <div class="sidebar-theme-grid">
+            <button class="theme-item" data-theme="slate">🤎 Warm Slate</button>
+            <button class="theme-item" data-theme="electric-blue">⚡ Electric Blue</button>
+            <button class="theme-item" data-theme="pastel-blue">🫧 Pastel Blue</button>
+            <button class="theme-item" data-theme="glass">🔮 Transparent Glass</button>
+            <button class="theme-item" data-theme="purple-yellow">💜 / 💛 Purple or Yellow (50%)</button>
+            <button class="theme-item" data-theme="matcha-strawberry">🍵 / 🍓 Matcha or Strawberry (50%)</button>
+          </div>
+        </div>
+
+        <div class="sidebar-section">
+          <label class="sidebar-label">💭 Speech Bubbles</label>
+          <button id="toggle-circle-speech-btn" class="btn sidebar-action-btn active">
+            <span class="btn-icon">💭</span> <span class="btn-text">Circle Speech Bubbles: On</span>
+          </button>
+        </div>
+
+        <div class="sidebar-section">
+          <label class="sidebar-label">🗑️ Message History</label>
+          <button id="clear-room-messages-btn" class="btn sidebar-action-btn">
+            <span class="btn-icon">💬</span> <span class="btn-text">Clear Room Messages</span>
+          </button>
+          <button id="clear-video-messages-btn" class="btn sidebar-action-btn">
+            <span class="btn-icon">📹</span> <span class="btn-text">Clear Video Call Messages</span>
+          </button>
+        </div>
+      </div>
+    </aside>
 
     <!-- Push Notifications Urge Modal (shown before entering room) -->
     <div id="notif-urge-modal" class="modal-overlay hidden">
