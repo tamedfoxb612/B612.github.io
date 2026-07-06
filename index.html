@@ -11,8 +11,159 @@
   <!-- Supabase JS CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   
-  <link rel="stylesheet" href="./style.css">
-  <link rel="stylesheet" href="./play-together.css">
+  <!-- RUFFLE FLASH PLAYER -->
+  <script src="https://unpkg.com/@ruffle-rs/ruffle"></script>
+
+  <link rel="stylesheet" href="./style.css?v=gradient3">
+
+  <!-- ARCADE VAULT SCOPED STYLES (Keeps style.css untouched) -->
+  <style id="arcade-styles">
+    #arcade-overlay-modal {
+      display: none; /* Hidden by default */
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 800; /* High enough to cover room, adjust if you want video circles above it */
+      background-color: #0d1117;
+      color: #c9d1d9;
+      grid-template-columns: 1fr 350px;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    #arcade-overlay-modal.active {
+      display: grid;
+    }
+
+    /* Left Side: Player Area */
+    #arcade-main-stage {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+      background-color: #0a0c10;
+      position: relative;
+    }
+
+    #arcade-player-wrapper {
+      width: 100%;
+      max-width: 900px;
+      aspect-ratio: 4 / 3;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .arcade-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 15px;
+    }
+
+    .arcade-header h2 {
+      margin: 0; color: #e6edf3; font-family: monospace; font-size: 1.2rem;
+    }
+
+    .arcade-controls-group {
+      display: flex;
+      gap: 10px;
+    }
+
+    .arcade-btn-stop, .arcade-btn-close-modal {
+      padding: 8px 16px;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    .arcade-btn-stop { display: none; background: #da3633; }
+    .arcade-btn-stop:hover { background: #f85149; }
+    .arcade-btn-close-modal { background: #4b5563; }
+    .arcade-btn-close-modal:hover { background: #6b7280; }
+
+    #arcade-player-container {
+      flex-grow: 1;
+      background: #000;
+      box-shadow: 0 0 30px rgba(0,0,0,0.5);
+      border-radius: 8px;
+      border: 1px solid #30363d;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .arcade-placeholder-text { color: #484f58; font-family: monospace; }
+
+    /* Right Side: Sidebar Vault */
+    #arcade-sidebar {
+      background-color: #161b22;
+      border-left: 1px solid #30363d;
+      padding: 2rem 1.5rem;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #arcade-sidebar h1 { color: #ff7b72; font-family: monospace; margin: 0 0 5px 0; font-size: 1.3rem; }
+    #arcade-sidebar p { color: #8b949e; margin: 0 0 20px 0; font-size: 0.85rem; }
+
+    .arcade-search-box {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+    .arcade-search-box input {
+      width: 100%; padding: 10px; box-sizing: border-box;
+      background: #0d1117; border: 1px solid #30363d;
+      border-radius: 6px; color: white; font-size: 14px;
+    }
+    .arcade-search-btn {
+      padding: 10px; background: #238636; color: white;
+      border: none; border-radius: 6px; cursor: pointer;
+      font-weight: bold; font-size: 14px;
+    }
+    .arcade-search-btn:hover { background: #2ea043; }
+
+    #arcade-status {
+      color: #58a6ff; margin-bottom: 15px; font-weight: bold;
+      font-family: monospace; font-size: 0.85rem;
+    }
+
+    #arcade-results {
+      display: flex; flex-direction: column; gap: 15px;
+    }
+
+    .arcade-card {
+      background: #0d1117; border: 1px solid #30363d;
+      border-radius: 8px; overflow: hidden; display: flex;
+      flex-direction: column; transition: transform 0.2s;
+    }
+    .arcade-card:hover { transform: translateY(-2px); border-color: #58a6ff; }
+    
+    .arcade-thumb-container {
+      width: 100%; height: 120px; background-color: #000;
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+    }
+    .arcade-thumb { width: 100%; height: 100%; object-fit: cover; }
+    .arcade-fallback { color: #484f58; font-size: 0.8em; font-family: monospace; }
+
+    .arcade-info { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+    .arcade-title { font-weight: bold; color: #e6edf3; font-size: 0.9em; line-height: 1.2; }
+    .arcade-play-btn {
+      background: #1f6feb; color: white; width: 100%; padding: 8px;
+      border: none; border-radius: 4px; cursor: pointer; font-weight: bold;
+    }
+    .arcade-play-btn:hover { background: #388bfd; }
+
+    /* Mobile Responsiveness for Modal */
+    @media (max-width: 800px) {
+      #arcade-overlay-modal {
+        grid-template-columns: 1fr;
+        grid-template-rows: 50vh 50vh;
+      }
+      #arcade-sidebar { border-left: none; border-top: 1px solid #30363d; }
+    }
+  </style>
 </head>
 <body>
   <!-- Toast Notification Container (No native browser alert/confirm allowed!) -->
@@ -184,14 +335,15 @@
           </form>
         </aside>
 
-        <!-- Bottom Bar Controls (Audio, Video, Screen Share, Live Chat) -->
+        <!-- Bottom Bar Controls (Audio, Video, Screen Share, Live Chat, Arcade) -->
         <footer class="video-bottom-bar">
           <div class="video-bottom-inner">
             <div class="media-controls-group">
               <button id="toggle-mute-btn" class="btn btn-round-ctrl" title="Mute/Unmute Audio">🎙️</button>
               <button id="toggle-cam-btn" class="btn btn-round-ctrl" title="Turn Camera On/Off">📷</button>
               <button id="toggle-screen-btn" class="btn btn-round-ctrl screen-share-btn" title="Share Screen">🖥️</button>
-              <button id="toggle-play-together-btn" class="btn btn-round-ctrl pt-btn" title="Play Together">🕹️</button>
+              <!-- NEW ARCADE BUTTON -->
+              <button id="open-arcade-btn-video" class="btn btn-round-ctrl" title="Open Arcade Vault">🕹️</button>
             </div>
             <div class="chat-toggle-group">
               <button id="toggle-live-chat-btn" class="btn btn-round-ctrl live-chat-toggle" title="Toggle Live Chat">💬</button>
@@ -212,39 +364,9 @@
         </div>
       </div>
     </div>
-
-    <!-- Play Together Modal -->
-    <div id="play-together-modal" class="modal-overlay hidden">
-      <div class="modal-card" style="max-width: 800px; width: 90%; max-height: 90vh; display: flex; flex-direction: column;">
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 12px; margin-bottom: 16px;">
-          <h3 style="margin: 0; font-size: 1.5rem; display: flex; align-items: center; gap: 8px;">🕹️ Play Together</h3>
-          <button id="close-pt-modal-btn" class="btn-icon-small" title="Close">✕</button>
-        </div>
-        
-        <div class="pt-search-box">
-          <input type="text" id="pt-search-input" placeholder="Search Flash games on archive.org..." />
-          <button id="pt-search-btn">Search</button>
-        </div>
-        
-        <div id="pt-status-text"></div>
-        
-        <div id="pt-games-grid" style="overflow-y: auto; flex-grow: 1; padding-right: 8px;">
-          <!-- Games populate here -->
-        </div>
-      </div>
-    </div>
-
-    <!-- Play Together Game Container (Appears in video call) -->
-    <div id="play-together-container" class="hidden" style="position: absolute; top: 10%; left: 50%; transform: translateX(-50%); width: 80%; height: 70%; background: #000; z-index: 1000; border-radius: 12px; border: 2px solid #444; overflow: hidden; display: flex; flex-direction: column; box-shadow: 0 10px 30px rgba(0,0,0,0.8);">
-      <div style="background: #222; padding: 8px 16px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #444;">
-        <span style="font-weight: bold; color: white;">🕹️ Playing Together</span>
-        <button id="pt-close-game-btn" class="btn-icon-small" style="background: rgba(255,0,0,0.2); color: #ff4444;" title="Close Game">✕ Close</button>
-      </div>
-      <div id="play-together-player-root" style="flex-grow: 1; position: relative;"></div>
-    </div>
   </div>
 
-  <!-- Slide-out Settings Sidebar Drawer (moved outside app-container so fixed positioning never breaks) -->
+  <!-- Slide-out Settings Sidebar Drawer -->
   <div id="sidebar-overlay" class="sidebar-overlay hidden"></div>
   <aside id="settings-sidebar" class="settings-sidebar hidden">
     <div class="sidebar-header">
@@ -252,6 +374,15 @@
       <button id="close-sidebar-btn" class="btn-icon-small" title="Close Sidebar">✕</button>
     </div>
     <div class="sidebar-content">
+      
+      <!-- NEW ARCADE SIDEBAR BUTTON -->
+      <div class="sidebar-section">
+        <label class="sidebar-label">🕹️ Flash Games</label>
+        <button id="open-arcade-btn-sidebar" class="btn sidebar-action-btn">
+          <span class="btn-icon">🕹️</span> <span class="btn-text">Open Arcade Vault</span>
+        </button>
+      </div>
+
       <div class="sidebar-section">
         <label class="sidebar-label">🎨 Page / Room Theme</label>
         <div class="sidebar-theme-grid">
@@ -290,8 +421,176 @@
     </div>
   </aside>
 
-  <script src="https://unpkg.com/@ruffle-rs/ruffle"></script>
-  <script type="module" src="./play-together.js"></script>
-  <script type="module" src="./app.js"></script>
+  <!-- ========================================== -->
+  <!-- ARCADE VAULT OVERLAY UI (Injected locally) -->
+  <!-- ========================================== -->
+  <div id="arcade-overlay-modal">
+    <!-- LEFT SIDE: The Game Player -->
+    <main id="arcade-main-stage">
+        <div id="arcade-player-wrapper">
+            <div class="arcade-header">
+                <h2 id="arcade-now-playing">> Standby...</h2>
+                <div class="arcade-controls-group">
+                  <button id="arcade-btn-stop" class="arcade-btn-stop" onclick="closeArcadeGame()">STOP GAME</button>
+                  <button class="arcade-btn-close-modal" id="arcade-btn-hide">✕ CLOSE VAULT</button>
+                </div>
+            </div>
+            <div id="arcade-player-container">
+                <span class="arcade-placeholder-text" id="arcade-placeholder">Select a game from the vault to begin playing.</span>
+            </div>
+        </div>
+    </main>
+
+    <!-- RIGHT SIDE: The Vault & Search -->
+    <aside id="arcade-sidebar">
+        <h1>> Arcade_Vault</h1>
+        <p>Archive.org Flash Library</p>
+
+        <div class="arcade-search-box">
+            <input type="text" id="arcade-query" placeholder="Search for a specific game..." onkeypress="if(event.key === 'Enter') loadArcadeGames(this.value)">
+            <button class="arcade-search-btn" onclick="loadArcadeGames(document.getElementById('arcade-query').value)">SEARCH VAULT</button>
+        </div>
+
+        <div id="arcade-status">Initializing vault...</div>
+        <div id="arcade-results"></div>
+    </aside>
+  </div>
+
+  <!-- ARCADE LOGIC SCRIPT (Isolated from app.js) -->
+  <script id="arcade-logic">
+      let arcadeLoaded = false;
+      const arcadeModal = document.getElementById('arcade-overlay-modal');
+
+      // Toggle UI Handlers
+      function openArcadeVault() {
+          arcadeModal.classList.add('active');
+          if (!arcadeLoaded) {
+            loadArcadeGames("");
+            arcadeLoaded = true;
+          }
+          // If sidebar is open, close it so we can see the game
+          const sidebar = document.getElementById('settings-sidebar');
+          const sidebarOverlay = document.getElementById('sidebar-overlay');
+          if (sidebar) sidebar.classList.remove('open');
+          if (sidebarOverlay) sidebarOverlay.classList.add('hidden');
+      }
+
+      function hideArcadeVault() {
+          arcadeModal.classList.remove('active');
+      }
+
+      // Attach button listeners from main app UI
+      document.getElementById('open-arcade-btn-video')?.addEventListener('click', openArcadeVault);
+      document.getElementById('open-arcade-btn-sidebar')?.addEventListener('click', openArcadeVault);
+      document.getElementById('arcade-btn-hide')?.addEventListener('click', hideArcadeVault);
+
+      // Core Game Fetch Logic
+      async function loadArcadeGames(userQuery) {
+          const status = document.getElementById('arcade-status');
+          const resultsDiv = document.getElementById('arcade-results');
+          
+          status.innerText = "Loading archive contents...";
+          resultsDiv.innerHTML = "";
+
+          try {
+              let searchUrl = "";
+              if (userQuery.trim() === "") {
+                  searchUrl = `https://archive.org/advancedsearch.php?q=collection:(softwarelibrary_flash) AND format:(Shockwave Flash)&fl[]=identifier,title&rows=60&output=json`;
+              } else {
+                  searchUrl = `https://archive.org/advancedsearch.php?q=title:(*${encodeURIComponent(userQuery)}*) AND (format:"Shockwave Flash" OR format:"Flash")&fl[]=identifier,title&rows=60&output=json`;
+              }
+              
+              const searchRes = await fetch(searchUrl);
+              const searchData = await searchRes.json();
+              const rawItems = searchData.response.docs;
+
+              if (!rawItems || rawItems.length === 0) {
+                  status.innerText = "No games found matching your request.";
+                  return;
+              }
+
+              status.innerText = "Deduplicating entries and sorting alphabetically...";
+
+              const uniqueGames = {};
+              for (const item of rawItems) {
+                  let title = item.title ? item.title.trim() : item.identifier;
+                  let cleanTitle = title.toLowerCase();
+                  if (!uniqueGames[cleanTitle]) {
+                      uniqueGames[cleanTitle] = { title: title, identifier: item.identifier };
+                  }
+              }
+
+              const sortedGames = Object.values(uniqueGames).sort((a, b) => a.title.localeCompare(b.title));
+              status.innerText = `Extracting playable engines for ${sortedGames.length} games...`;
+              let displayCount = 0;
+
+              for (const item of sortedGames) {
+                  const metaUrl = `https://archive.org/metadata/${item.identifier}`;
+                  const metaRes = await fetch(metaUrl);
+                  const metaData = await metaRes.json();
+                  const swfFile = metaData.files ? metaData.files.find(f => f.name.toLowerCase().endsWith('.swf')) : null;
+
+                  if (swfFile) {
+                      displayCount++;
+                      const directUrl = `https://archive.org/download/${item.identifier}/${swfFile.name}`;
+                      const thumbnailUrl = `https://archive.org/services/img/${item.identifier}`;
+                      
+                      const card = document.createElement('div');
+                      card.className = 'arcade-card';
+                      const safeTitle = item.title.replace(/'/g, "\\'"); 
+
+                      card.innerHTML = `
+                          <div class="arcade-thumb-container">
+                              <img src="${thumbnailUrl}" class="arcade-thumb" alt="Cover" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                              <span class="arcade-fallback" style="display:none;">NO COVER ART</span>
+                          </div>
+                          <div class="arcade-info">
+                              <div class="arcade-title">${item.title}</div>
+                              <button class="arcade-play-btn" onclick="playArcadeGame('${directUrl}', '${safeTitle}')">► PLAY NOW</button>
+                          </div>
+                      `;
+                      resultsDiv.appendChild(card);
+                  }
+              }
+              status.innerText = `Loaded ${displayCount} games successfully. Sorted A-Z.`;
+          } catch (error) {
+              status.innerText = `Database fetch failed: ${error.message}`;
+          }
+      }
+
+      // Ruffle Integration
+      window.RufflePlayer = window.RufflePlayer || {};
+
+      function playArcadeGame(swfUrl, gameTitle) {
+          const container = document.getElementById('arcade-player-container');
+          const nowPlaying = document.getElementById('arcade-now-playing');
+          const stopBtn = document.getElementById('arcade-btn-stop');
+          
+          nowPlaying.innerText = `> Now Playing: ${gameTitle}`;
+          stopBtn.style.display = 'block';
+          container.innerHTML = ''; 
+          
+          const ruffle = window.RufflePlayer.newest();
+          const player = ruffle.createPlayer();
+          player.style.width = '100%';
+          player.style.height = '100%';
+          
+          container.appendChild(player);
+          player.load(swfUrl);
+      }
+
+      function closeArcadeGame() {
+          const container = document.getElementById('arcade-player-container');
+          const nowPlaying = document.getElementById('arcade-now-playing');
+          const stopBtn = document.getElementById('arcade-btn-stop');
+
+          container.innerHTML = '<span class="arcade-placeholder-text" id="arcade-placeholder">Select a game from the vault to begin playing.</span>';
+          nowPlaying.innerText = '> Standby...';
+          stopBtn.style.display = 'none';
+      }
+  </script>
+
+  <!-- YOUR EXISTING APP LOGIC -->
+  <script src="./app.js?v=gradient3"></script>
 </body>
 </html>
