@@ -16,6 +16,7 @@
 const MANUAL_SUPABASE_URL = ""; // e.g., "https://abcdefghijklmnop.supabase.co"
 const MANUAL_SUPABASE_ANON_KEY = ""; // e.g., "eyJhbGciOi..."
 const MANUAL_VAPID_PUBLIC_KEY = ""; // e.g., "BEl62iUYgUivxIkv69yViEuiBIa-..."
+const DEFAULT_SUPABASE_URL = "";
 
 // State Management
 const state = {
@@ -145,7 +146,25 @@ function showToast(message, type = 'info', duration = 4000) {
   }
 }
 
+function playBeepSound() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
+    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15); // A5
+    gain.gain.setValueAtTime(0.15, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    osc.stop(ctx.currentTime + 0.35);
+  } catch (e) { /* ignore audio blocked */ }
+}
+
 function showNativeNotification(title, body, force = false) {
+  playBeepSound();
   if (!force && !document.hidden) return;
   if (!('Notification' in window)) return;
   if (Notification.permission === 'granted') {
@@ -155,14 +174,14 @@ function showNativeNotification(title, body, force = false) {
       badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">❤️</text></svg>',
       vibrate: [200, 100, 200]
     };
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.ready.then(reg => {
-        reg.showNotification(title || 'B612 ❤️', options).catch(() => {});
-      }).catch(() => {
-        try { new Notification(title || 'B612 ❤️', options); } catch (e) {}
-      });
-    } else {
-      try { new Notification(title || 'B612 ❤️', options); } catch (e) {}
+    try {
+      new Notification(title || 'B612 ❤️', options);
+    } catch (e) {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.ready.then(reg => {
+          reg.showNotification(title || 'B612 ❤️', options).catch(() => {});
+        }).catch(() => {});
+      }
     }
   }
 }
@@ -173,7 +192,7 @@ function showNativeNotification(title, body, force = false) {
 async function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     try {
-      const reg = await navigator.serviceWorker.register('./sw.js?v=sketch4');
+      const reg = await navigator.serviceWorker.register('./sw.js?v=gradient2');
       await reg.update();
       console.log('Service Worker registered successfully:', reg.scope);
     } catch (err) {
@@ -291,7 +310,11 @@ function setupEventListeners() {
   // Push Notifications Pre-Room Modal buttons
   elements.enableNotifsEnterBtn?.addEventListener('click', async () => {
     elements.notifUrgeModal?.classList.add('hidden');
-    await handleEnablePush(false);
+    try {
+      await handleEnablePush(false);
+    } catch (err) {
+      console.warn('Push setup note:', err);
+    }
     completeRoomJoin();
   });
   elements.skipNotifsEnterBtn?.addEventListener('click', () => {
@@ -509,7 +532,15 @@ function setupRealtimeSubscription() {
   if (!state.supabase) {
     // Fallback broadcast via broadcastChannel or memory for instant UI demo
     window.demoBroadcast = window.demoBroadcast || new BroadcastChannel(`b612_${state.roomCode}`);
-    window.demoBroadcast.onmessage = (event) => handleIncomingPayload(event.data);
+    window.demoBroadcast.onmessage = (event) => {
+      const data = event.data;
+      if (!data) return;
+      if (data.signaling || ['offer', 'answer', 'ice-candidate', 'call-invite', 'call-accept', 'call-decline', 'theme-change', 'cam-toggle', 'screen-share-toggle', 'toggle-circle-speech', 'end-call'].includes(data.type)) {
+        handleSignalingMessage(data);
+      } else {
+        handleIncomingPayload(data);
+      }
+    };
     return;
   }
 
@@ -540,6 +571,10 @@ function setupRealtimeSubscription() {
  */
 function handleIncomingPayload(data) {
   if (!data) return;
+  if (data.signaling || ['offer', 'answer', 'ice-candidate', 'call-invite', 'call-accept', 'call-decline', 'theme-change', 'cam-toggle', 'screen-share-toggle', 'toggle-circle-speech', 'end-call'].includes(data.type)) {
+    handleSignalingMessage(data);
+    return;
+  }
   const { type, content, sender, timestamp } = data;
   if (sender === state.userName) return; // ignore self broadcast echoes
   
@@ -1348,6 +1383,9 @@ async function triggerRemotePushNotification(title, body) {
 // VIDEO CALL INVITATION & PRESENCE
 // =========================================================================
 function sendCallInvite() {
+  sendSignaling({ type: 'call-invite', sender: state.userName });
+  showToast('Sent live video invite modal to partner!', 'success');
+  triggerRemotePushNotification('📹 Live Video Invite!', `${state.userName} invited you to a live video call! Click to join.`);
   initiateVideoCall();
 }
 
