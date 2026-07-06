@@ -559,7 +559,7 @@ function handleIncomingPayload(data) {
  * Load past messages from Supabase 'messages' table
  */
 async function loadPastMessages() {
-  if (!state.supabase || state.supabase.supabaseUrl === DEFAULT_SUPABASE_URL) return;
+  if (!state.supabase || state.supabase.supabaseUrl === MANUAL_SUPABASE_URL) return;
   try {
     const { data, error } = await state.supabase
       .from('messages')
@@ -606,7 +606,7 @@ async function handleSendHeart() {
   }
 
   // Persist to Supabase database
-  if (state.supabase && state.supabase.supabaseUrl !== DEFAULT_SUPABASE_URL) {
+  if (state.supabase && state.supabase.supabaseUrl !== MANUAL_SUPABASE_URL) {
     try {
       await state.supabase.from('messages').insert([{
         room_code: state.roomCode,
@@ -653,7 +653,7 @@ async function sendChatMessageText(text) {
     window.demoBroadcast.postMessage(payload);
   }
 
-  if (state.supabase && state.supabase.supabaseUrl !== DEFAULT_SUPABASE_URL) {
+  if (state.supabase && state.supabase.supabaseUrl !== MANUAL_SUPABASE_URL) {
     try {
       await state.supabase.from('messages').upsert([{
         room_code: state.roomCode,
