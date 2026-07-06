@@ -3,21 +3,35 @@
  * Handles background push notifications and asset caching for offline PWA capabilities.
  */
 
-const CACHE_NAME = 'b612-sketch-v7';
+const CACHE_NAME = 'b612-playtogether-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
-  './style.css',
-  './app.js',
-  './manifest.json'
+  './style.css?v=playtogether2',
+  './app.js?v=playtogether2',
+  './play.html',
+  './play.js?v=playtogether2',
+  './fbwg.html',
+  './manifest.json',
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
 ];
 
-// Install Event - Cache assets
+// Install Event - Cache assets for offline and instant slow 4G load (using reload to bypass browser disk cache)
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      console.log('Service Worker: Caching App Shell v2');
-      return cache.addAll(ASSETS_TO_CACHE);
+    caches.open(CACHE_NAME).then(async (cache) => {
+      console.log('Service Worker: Caching App Shell for instant load and offline capability');
+      for (const asset of ASSETS_TO_CACHE) {
+        try {
+          const req = new Request(asset, { cache: 'reload' });
+          const res = await fetch(req);
+          if (res && (res.status === 200 || res.status === 0)) {
+            await cache.put(asset, res);
+          }
+        } catch (err) {
+          console.warn('Failed to cache asset on install:', asset, err);
+        }
+      }
     }).then(() => self.skipWaiting())
   );
 });
@@ -38,26 +52,61 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch Event - Network-First strategy with Cache Fallback (Ensures live code updates are always seen immediately)
+// Fetch Event - Stale-While-Revalidate Strategy with Supabase Bypass
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
-  
-  event.respondWith(
-    fetch(event.request)
-      .then((networkResponse) => {
-        // If network request succeeds, update the cache with the fresh response
-        if (networkResponse && networkResponse.status === 200) {
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
+
+  const url = event.request.url;
+
+  // Rule 1: Bypass the database - Any network requests going to supabase.co bypass cache completely
+  if (url.includes('supabase.co') || url.includes('supabase.in')) {
+    return;
+  }
+
+  // Network-First Strategy for HTML, JS, and CSS so user code updates take effect immediately
+  if (event.request.mode === 'navigate' || url.endsWith('.html') || url.includes('.js') || url.includes('.css')) {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && (networkResponse.status === 200 || networkResponse.status === 0)) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseToCache));
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          return caches.match(event.request, { ignoreSearch: true }).then((cached) => {
+            if (cached) return cached;
+            if (event.request.mode === 'navigate') {
+              return caches.match('./index.html', { ignoreSearch: true });
+            }
           });
-        }
-        return networkResponse;
-      })
-      .catch(() => {
-        // Fallback to cache when offline
-        return caches.match(event.request);
-      })
+        })
+    );
+    return;
+  }
+
+  // Stale-While-Revalidate Strategy for images and other static media
+  event.respondWith(
+    caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
+      const fetchPromise = fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && (networkResponse.status === 200 || networkResponse.status === 0)) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => {});
+
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+
+      return fetchPromise;
+    })
   );
 });
 

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Arcade Vault</title>
+  <style>
+    body {
+      margin: 0;
+      background: #0d1117;
+      color: #c9d1d9;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+    }
+    .header {
+      padding: 15px 20px;
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .header h1 {
+      margin: 0;
+      font-size: 20px;
+      color: #58a6ff;
+    }
+    .search-box {
+      display: flex;
+      gap: 10px;
+    }
+    .search-box input {
+      padding: 8px 12px;
+      border-radius: 6px;
+      border: 1px solid #30363d;
+      background: #0d1117;
+      color: white;
+    }
+    .search-box button {
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: 1px solid #30363d;
+      background: #238636;
+      color: white;
+      cursor: pointer;
+    }
+    .search-box button:hover {
+      background: #2ea043;
+    }
+    .content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+    }
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 20px;
+    }
+    .result-card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .result-card:hover {
+      transform: translateY(-4px);
+      border-color: #58a6ff;
+    }
+    .thumbnail-container {
+      aspect-ratio: 4/3;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    .thumbnail-container img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .fallback-text {
+      color: #8b949e;
+      font-size: 14px;
+    }
+    .result-info {
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .result-title {
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .play-btn {
+      padding: 8px;
+      background: #58a6ff;
+      color: #0d1117;
+      border: none;
+      border-radius: 4px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .play-btn:hover {
+      background: #79c0ff;
+    }
+    #status {
+      margin-bottom: 20px;
+      color: #8b949e;
+    }
+
+    #player-section {
+      display: none;
+      flex-direction: column;
+      height: 100%;
+    }
+    .player-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+    .back-btn {
+      padding: 8px 16px;
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: white;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    .back-btn:hover {
+      background: #30363d;
+    }
+    #player-container {
+      flex: 1;
+      background: #000;
+      border-radius: 8px;
+      border: 1px solid #30363d;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .placeholder-text {
+      color: #8b949e;
+    }
+  </style>
+  <script src="https://unpkg.com/@ruffle-rs/ruffle"></script>
+</head>
+<body>
+
+  <div class="header">
+    <h1>🕹️ Arcade Vault</h1>
+    <div class="search-box" id="search-box">
+      <input type="text" id="search-input" placeholder="Search games...">
+      <button id="search-btn">Search</button>
+    </div>
+  </div>
+
+  <div class="content">
+    <div id="vault-section">
+      <div id="status">Loading archive contents...</div>
+      <div class="results-grid" id="results"></div>
+    </div>
+
+    <div id="player-section">
+      <div class="player-header">
+        <button class="back-btn" id="back-btn">← Back to Vault</button>
+        <span id="now-playing" style="font-weight: bold; color: #58a6ff;"></span>
+      </div>
+      <div id="player-container">
+        <span class="placeholder-text">Initializing Ruffle...</span>
+      </div>
+    </div>
+  </div>
+
+  <script src="/pwa/arcade.js"></script>
+</body>
+</html>

@@ -34,6 +34,7 @@
 
 body {
   background-color: var(--bg-main);
+  background: linear-gradient(135deg, var(--bg-gradient-top), var(--bg-gradient-bottom));
   color: var(--text-main);
   font-family: var(--font-sans);
   min-height: 100vh;
@@ -176,7 +177,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: 32px 20px;
-  background: linear-gradient(to bottom, var(--bg-gradient-top), var(--bg-gradient-bottom));
+  background: linear-gradient(135deg, var(--bg-gradient-top), var(--bg-gradient-bottom));
 }
 
 .card {
@@ -352,7 +353,7 @@ input:focus {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background-color: var(--bg-subtle);
+  background: linear-gradient(135deg, var(--bg-gradient-top), var(--bg-gradient-bottom));
 }
 
 /* Left side or full width responsiveness */
@@ -530,7 +531,7 @@ input:focus {
   align-items: center;
   justify-content: flex-start;
   padding: 32px;
-  background: linear-gradient(to bottom, var(--bg-gradient-top), var(--bg-gradient-bottom));
+  background: linear-gradient(135deg, var(--bg-gradient-top), var(--bg-gradient-bottom));
   overflow-y: auto;
   gap: 24px;
 }
@@ -1324,13 +1325,14 @@ input:focus {
   overflow: hidden;
 }
 
-/* 3. Screen Share Floating Circles Mode */
-.video-panes-wrapper.layout-circles .screen-pane {
-  position: absolute;
-  inset: 0;
+/* 3. Screen Share & Arcade Floating Circles Mode */
+.video-panes-wrapper.layout-circles .screen-pane,
+.video-panes-wrapper.layout-circles .arcade-pane {
+  position: absolute !important;
+  inset: 0 !important;
   width: 100% !important;
   height: 100% !important;
-  z-index: 1;
+  z-index: 10 !important;
   flex: none !important;
 }
 
@@ -1341,14 +1343,46 @@ input:focus {
   object-fit: contain !important;
   background: #000;
 }
+#screen-share-video.hidden {
+  display: none !important;
+}
+
+/* Arcade Viewport Styling inside video-panes-wrapper */
+.arcade-pane,
+#arcade-viewport {
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#arcade-viewport.hidden,
+.arcade-pane.hidden {
+  display: none !important;
+}
+
+#arcade-iframe {
+  width: 90%;
+  max-width: 1200px;
+  height: 85%;
+  max-height: 800px;
+  border-radius: 12px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #0d1117;
+  flex: none;
+}
 
 .video-panes-wrapper.layout-circles .video-resizer {
   display: none !important;
 }
 
+
 .video-panes-wrapper.layout-circles .remote-pane.circle,
 .video-panes-wrapper.layout-circles .local-pane.circle {
-  position: absolute;
+  position: absolute !important;
   width: 240px;
   height: 240px;
   min-width: 120px;
@@ -1360,8 +1394,10 @@ input:focus {
   box-shadow: 0 12px 35px rgba(0, 0, 0, 0.85);
   overflow: hidden;
   cursor: move;
-  z-index: 15;
+  z-index: 999999 !important;
   flex: none !important;
+  pointer-events: auto !important;
+  transform: translateZ(100px);
 }
 
 .video-panes-wrapper.layout-circles .remote-pane.circle {
@@ -1529,13 +1565,13 @@ body.theme-glass {
 }
 .theme-glass .cam-off-placeholder { background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(18px); color: white; }
 
-/* Pure Purple (from 50% chance purple/yellow) */
+/* Purple Accent (from 50% chance purple/yellow) with Mixed Purple & Golden Yellow Background */
 body.theme-purple {
   --bg-main: #2d1b4e;
   --bg-subtle: #3d266b;
-  --bg-gradient-top: #2d1b4e;
-  --bg-gradient-bottom: #1e1136;
-  --card-bg: #4c3085;
+  --bg-gradient-top: #3b0764; /* rich violet purple */
+  --bg-gradient-bottom: #854d0e; /* warm golden amber yellow */
+  --card-bg: rgba(76, 48, 133, 0.95);
   --card-border: #6d44b8;
   --border-color: #6d44b8;
   --primary: #c084fc;
@@ -1547,13 +1583,13 @@ body.theme-purple {
 }
 .theme-purple .cam-off-placeholder { background: #4a154b; color: #f3e8ff; }
 
-/* Pure Yellow (from 50% chance purple/yellow) */
+/* Yellow Accent (from 50% chance purple/yellow) with Mixed Yellow & Purple Background */
 body.theme-yellow {
   --bg-main: #fefce8;
   --bg-subtle: #fef9c3;
-  --bg-gradient-top: #fefce8;
-  --bg-gradient-bottom: #fef08a;
-  --card-bg: #ffffff;
+  --bg-gradient-top: #fef08a; /* vibrant warm yellow */
+  --bg-gradient-bottom: #d8b4fe; /* soft lavender purple */
+  --card-bg: rgba(255, 255, 255, 0.95);
   --card-border: #fde047;
   --border-color: #fde047;
   --primary: #ca8a04;
@@ -1565,13 +1601,13 @@ body.theme-yellow {
 }
 .theme-yellow .cam-off-placeholder { background: #facc15; color: #713f12; }
 
-/* Pure Matcha Green (from 50% chance matcha/strawberry) */
+/* Matcha Green Accent (from 50% chance matcha/strawberry) with Mixed Matcha & Strawberry Background */
 body.theme-matcha {
   --bg-main: #f0fdf4;
   --bg-subtle: #dcfce7;
-  --bg-gradient-top: #f0fdf4;
-  --bg-gradient-bottom: #dcfce7;
-  --card-bg: #ffffff;
+  --bg-gradient-top: #bbf7d0; /* fresh matcha green */
+  --bg-gradient-bottom: #fbcfe8; /* sweet strawberry pink */
+  --card-bg: rgba(255, 255, 255, 0.95);
   --card-border: #bbf7d0;
   --border-color: #bbf7d0;
   --primary: #16a34a;
@@ -1583,13 +1619,13 @@ body.theme-matcha {
 }
 .theme-matcha .cam-off-placeholder { background: #65a30d; color: #f0fdf4; }
 
-/* Pure Strawberry Pink (from 50% chance matcha/strawberry) */
+/* Strawberry Pink Accent (from 50% chance matcha/strawberry) with Mixed Strawberry & Matcha Background */
 body.theme-strawberry {
   --bg-main: #fdf2f8;
   --bg-subtle: #fce7f3;
-  --bg-gradient-top: #fdf2f8;
-  --bg-gradient-bottom: #fce7f3;
-  --card-bg: #ffffff;
+  --bg-gradient-top: #fbcfe8; /* sweet strawberry pink */
+  --bg-gradient-bottom: #bbf7d0; /* fresh matcha green */
+  --card-bg: rgba(255, 255, 255, 0.95);
   --card-border: #fbcfe8;
   --border-color: #fbcfe8;
   --primary: #db2777;
@@ -1946,10 +1982,169 @@ body.theme-strawberry {
   transition: all 0.2s ease;
 }
 
-.btn-round-ctrl:hover {
-  background: var(--primary-light);
+.btn-round-ctrl.play-together-btn {
+  background: var(--primary);
   border-color: var(--primary);
-  transform: scale(1.05);
+}
+
+/* Arcade Vault Styles inside video-panes-wrapper */
+.arcade-pane {
+  display: flex;
+  flex-direction: column;
+  background: #0d1117;
+  color: #c9d1d9;
+  overflow: hidden;
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.arcade-header {
+  padding: 15px 24px;
+  background: #161b22;
+  border-bottom: 1px solid #30363d;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  z-index: 5;
+}
+
+.arcade-search-box {
+  display: flex;
+  gap: 10px;
+  flex: 1;
+  max-width: 500px;
+}
+
+.arcade-search-box input {
+  flex-grow: 1;
+  padding: 8px 12px;
+  background: #0d1117;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  color: white;
+  font-size: 14px;
+}
+
+.arcade-search-box button {
+  padding: 8px 16px;
+  background: #238636;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+#game-selector-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  width: 100%;
+}
+
+#game-selector-container #results {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.result-card {
+  background: #161b22;
+  border: 1px solid #30363d;
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s, border-color 0.2s;
+  padding: 0;
+}
+
+.result-card:hover {
+  transform: translateY(-5px);
+  border-color: #58a6ff;
+}
+
+.thumbnail-container {
+  width: 100%;
+  height: 140px;
+  background-color: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.thumbnail {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.fallback-text {
+  color: #484f58;
+  font-size: 0.8em;
+  font-family: monospace;
+}
+
+.result-info {
+  padding: 14px;
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.result-title {
+  font-weight: bold;
+  color: #e6edf3;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.play-btn {
+  background: #1f6feb;
+  color: white;
+  border: none;
+  width: 100%;
+  padding: 10px;
+  border-radius: 6px;
+  text-align: center;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.play-btn:hover {
+  background: #388bfd;
+}
+
+#player-container {
+  flex: 1 1 auto !important;
+  min-height: 400px !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: #0d1117;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative !important;
+  z-index: 1 !important;
+  overflow: hidden;
+}
+
+#player-container ruffle-player,
+#player-container ruffle-player canvas {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 400px !important;
+  display: block !important;
 }
 
 .btn-round-ctrl.active-off {
@@ -2111,5 +2306,17 @@ body.theme-strawberry {
 .sidebar-action-btn:hover {
   background: var(--primary-light);
   border-color: var(--primary);
+}
+
+
+/* Disable iframe pointer events during drag */
+body.is-dragging-pane iframe {
+  pointer-events: none !important;
+}
+
+
+body.is-dragging-pane, body.is-dragging-pane * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
 }
 
