@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>B612</title>
+  <link rel="manifest" href="./manifest.json" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,600;0,700;1,600&display=swap" rel="stylesheet">
+  <!-- Supabase JS CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  
+  <link rel="stylesheet" href="./style.css?v=sketch5">
+</head>
+<body>
+  <!-- Toast Notification Container (No native browser alert/confirm allowed!) -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <div class="app-container">
+    <!-- VIEW 1: Login & Configuration View -->
+    <section id="login-view" class="view active">
+      <!-- Top Right Theme Picker for Front Page -->
+      <div class="front-page-actions" style="position: absolute; top: 20px; right: 20px; z-index: 50;">
+        <div class="preset-dropdown-wrapper">
+          <button id="front-theme-btn" class="btn btn-icon-small" title="Change Page Theme">🎨</button>
+          <div id="front-theme-menu" class="presets-menu hidden">
+            <button class="theme-item" data-theme="slate">🤎 Warm Slate</button>
+            <button class="theme-item" data-theme="electric-blue">⚡ Electric Blue</button>
+            <button class="theme-item" data-theme="pastel-blue">🫧 Pastel Blue</button>
+            <button class="theme-item" data-theme="glass">🔮 Transparent Glass</button>
+            <button class="theme-item" data-theme="purple-yellow">💜 / 💛 Purple or Yellow (50% Chance)</button>
+            <button class="theme-item" data-theme="matcha-strawberry">🍵 / 🍓 Matcha or Strawberry (50% Chance)</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- To configure Supabase backend or VAPID keys manually, edit MANUAL_SUPABASE_URL in public/pwa/app.js -->
+      <div class="card login-card">
+        <div class="input-group">
+          <label for="room-code-input">Room Code</label>
+          <input type="text" id="room-code-input" placeholder="e.g. SUMMER-92" maxlength="30" autocomplete="off" />
+        </div>
+
+        <div class="input-group mt-4">
+          <label for="user-name-input">Your Name / Nickname</label>
+          <input type="text" id="user-name-input" placeholder="e.g. Sweetheart" maxlength="20" />
+        </div>
+
+        <button id="join-btn" class="btn btn-primary mt-4">
+          <span>Enter Room ❤️</span>
+        </button>
+      </div>
+    </section>
+
+    <!-- VIEW 2: First Screen Room (Sketch 1 Layout) -->
+    <section id="dashboard-view" class="view hidden room-screen">
+      
+      <!-- Top Room Header -->
+      <header class="room-header">
+        <div class="room-info">
+          <button id="leave-room-btn" class="btn btn-icon-small btn-leave" title="Leave Room">🚪</button>
+          <span id="feed-count" class="activities-count">0 messages</span>
+        </div>
+        <div class="room-top-actions">
+          <!-- Button at topright to enter video call room -->
+          <button id="notify-call-btn" class="btn btn-icon-small btn-call-invite" title="Enter Video Call Room">📹</button>
+          <!-- 3 line slider button to open sidebar -->
+          <button id="open-sidebar-btn-room" class="btn btn-icon-small open-sidebar-trigger" title="Open Settings & Tools">☰</button>
+        </div>
+      </header>
+
+      <!-- Main Messages Area (Sketch 1: "messages here") -->
+      <main class="room-main-feed">
+        <div id="chat-feed" class="chat-feed">
+          <div class="empty-feed">
+            <p>messages here</p>
+          </div>
+        </div>
+      </main>
+
+      <!-- Bottom Bar (Sketch 1: Input Box + Heart Button) -->
+      <footer class="room-bottom-bar">
+        <div class="room-code-above-input">Room Code: <strong id="current-room-code">B612</strong></div>
+        <form id="message-form" class="room-input-form">
+          <input type="text" id="message-input" placeholder="Type a sweet message or press heart..." autocomplete="off" />
+          <button type="submit" id="room-heart-btn" class="btn-giant-heart-action" aria-label="Send Heart or Message">
+            ❤️
+          </button>
+        </form>
+      </footer>
+    </section>
+
+    <!-- Video Call Invitation Modal (Accept / Decline) -->
+    <div id="call-invite-modal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="pulse-ring">❤️</div>
+        <h3 id="invite-sender-text">Partner is inviting you to a Video Call!</h3>
+        <p>Accept to connect live with video and audio.</p>
+        <div class="modal-buttons">
+          <button id="accept-call-btn" class="btn btn-accept">Accept 📹</button>
+          <button id="decline-call-btn" class="btn btn-decline">Decline ❌</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- VIEW 3: Video Call Screen (Sketch 2 Layout) -->
+    <div id="video-ui" class="video-fullscreen-ui hidden theme-slate">
+        
+        <!-- Video Top Bar -->
+        <header class="video-top-bar">
+          <!-- Leave call button on top left -->
+          <div class="top-left-controls">
+            <button id="end-call-btn" class="btn btn-icon-small btn-leave" title="Leave Call">🚪</button>
+          </div>
+
+          <!-- Top Right Controls -->
+          <div class="top-right-controls">
+            <!-- Button in top right to toggle text to speech for messages -->
+            <button id="toggle-tts-btn" class="btn btn-icon-small toggle-tts-trigger" title="Toggle Message TTS">🔊</button>
+            <!-- 3 line slider button to open sidebar -->
+            <button id="open-sidebar-btn-video" class="btn btn-icon-small open-sidebar-trigger" title="Open Settings & Tools">☰</button>
+          </div>
+        </header>
+
+        <!-- Video Panes Container -->
+        <div id="video-panes-wrapper" class="video-panes-wrapper layout-equal">
+          <!-- Floating Circle Head Speech Bubbles -->
+          <div id="remote-circle-speech" class="circle-speech-bubble hidden"></div>
+          <div id="local-circle-speech" class="circle-speech-bubble hidden"></div>
+          
+          <!-- Partner Video Pane -->
+          <div id="remote-video-container" class="video-pane remote-pane" style="flex: 50;">
+            <video id="remote-video" autoplay playsinline></video>
+            <div id="remote-cam-off" class="cam-off-placeholder hidden">
+              <div class="cam-off-avatar">🧑</div>
+              <span class="cam-off-text">Partner Camera Off</span>
+            </div>
+            <div id="remote-waiting-overlay" class="remote-waiting">
+              <div class="spinner"></div>
+              <p>Waiting for partner stream...</p>
+            </div>
+            <span class="pane-label">Partner</span>
+            <div class="custom-pane-resizer" title="Drag to resize">↘</div>
+          </div>
+
+          <!-- Draggable Divider for manual resizing -->
+          <div id="video-resizer" class="video-resizer" title="Drag to resize video screens">
+            <div class="resizer-handle"></div>
+          </div>
+
+          <!-- Screen Share Feed Pane -->
+          <div id="screen-share-container" class="video-pane screen-pane hidden" style="flex: 60;">
+            <video id="screen-share-video" autoplay playsinline></video>
+            <span class="pane-label" id="screen-pane-label">Screen Share</span>
+          </div>
+
+          <!-- Local Video Pane -->
+          <div id="local-video-container" class="video-pane local-pane" style="flex: 50;">
+            <video id="local-video" autoplay playsinline muted></video>
+            <div id="local-cam-off" class="cam-off-placeholder hidden">
+              <div class="cam-off-avatar">😊</div>
+              <span class="cam-off-text">Your Camera Off</span>
+            </div>
+            <span class="pane-label">You</span>
+            <div class="custom-pane-resizer" title="Drag to resize">↘</div>
+          </div>
+        </div>
+
+        <!-- Floating / Solid / Transparent Chat Overlay -->
+        <aside id="video-chat-overlay" class="video-chat-overlay floating">
+          <div class="video-chat-header">
+            <span>Live Chat</span>
+            <div class="video-chat-header-actions">
+              <button id="clear-video-messages-btn" class="btn-mini-action" title="Clear Session Messages">🗑️</button>
+              <button id="minimize-video-chat" class="btn-mini-close">─</button>
+            </div>
+          </div>
+          <div id="video-chat-feed" class="video-chat-feed"></div>
+          <form id="video-chat-form" class="video-chat-form">
+            <input type="text" id="video-chat-input" placeholder="Message..." autocomplete="off" />
+            <button type="submit" class="btn-video-send">❤️</button>
+          </form>
+        </aside>
+
+        <!-- Bottom Bar Controls (Audio, Video, Screen Share, Live Chat) -->
+        <footer class="video-bottom-bar">
+          <div class="video-bottom-inner">
+            <div class="media-controls-group">
+              <button id="toggle-mute-btn" class="btn btn-round-ctrl" title="Mute/Unmute Audio">🎙️</button>
+              <button id="toggle-cam-btn" class="btn btn-round-ctrl" title="Turn Camera On/Off">📷</button>
+              <button id="toggle-screen-btn" class="btn btn-round-ctrl screen-share-btn" title="Share Screen">🖥️</button>
+            </div>
+            <div class="chat-toggle-group">
+              <button id="toggle-live-chat-btn" class="btn btn-round-ctrl live-chat-toggle" title="Toggle Live Chat">💬</button>
+            </div>
+          </div>
+        </footer>
+    </div>
+
+    <!-- Push Notifications Urge Modal (shown before entering room) -->
+    <div id="notif-urge-modal" class="modal-overlay hidden">
+      <div class="modal-card notif-urge-card">
+        <div class="pulse-ring" style="font-size: 2.8rem;">🔔</div>
+        <h3>Stay Connected on Video Dates!</h3>
+        <p style="margin: 12px 0; color: #d1d5db; line-height: 1.5;">To get instant alerts when your partner sends a page or invites you to a live video call, please turn on desktop/phone notifications!</p>
+        <div class="modal-buttons" style="flex-direction: column; gap: 10px;">
+          <button id="enable-notifs-enter-btn" class="btn btn-accept" style="width: 100%;">🔔 Enable Push Alerts & Enter Room</button>
+          <button id="skip-notifs-enter-btn" class="btn btn-decline" style="width: 100%;">Enter Room Without Notifications</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Slide-out Settings Sidebar Drawer (moved outside app-container so fixed positioning never breaks) -->
+  <div id="sidebar-overlay" class="sidebar-overlay hidden"></div>
+  <aside id="settings-sidebar" class="settings-sidebar hidden">
+    <div class="sidebar-header">
+      <h3>Settings & Tools</h3>
+      <button id="close-sidebar-btn" class="btn-icon-small" title="Close Sidebar">✕</button>
+    </div>
+    <div class="sidebar-content">
+      <div class="sidebar-section">
+        <label class="sidebar-label">🎨 Page / Room Theme</label>
+        <div class="sidebar-theme-grid">
+          <button class="theme-item" data-theme="slate">🤎 Warm Slate</button>
+          <button class="theme-item" data-theme="electric-blue">⚡ Electric Blue</button>
+          <button class="theme-item" data-theme="pastel-blue">🫧 Pastel Blue</button>
+          <button class="theme-item" data-theme="glass">🔮 Transparent Glass</button>
+          <button class="theme-item" data-theme="purple-yellow">💜 / 💛 Purple or Yellow (50%)</button>
+          <button class="theme-item" data-theme="matcha-strawberry">🍵 / 🍓 Matcha or Strawberry (50%)</button>
+        </div>
+      </div>
+
+      <div class="sidebar-section" id="tts-sidebar-section">
+        <label class="sidebar-label">🔊 Text-To-Speech (Webcall Only)</label>
+        <button id="toggle-tts-sidebar-btn" class="btn sidebar-action-btn">
+          <span class="btn-icon">🔊</span> <span class="btn-text">Message TTS: Off</span>
+        </button>
+      </div>
+
+      <div class="sidebar-section">
+        <label class="sidebar-label">💭 Speech Bubbles</label>
+        <button id="toggle-circle-speech-btn" class="btn sidebar-action-btn active">
+          <span class="btn-icon">💭</span> <span class="btn-text">Circle Speech Bubbles: On</span>
+        </button>
+      </div>
+
+      <div class="sidebar-section">
+        <label class="sidebar-label">🗑️ Message History</label>
+        <button id="clear-room-messages-btn" class="btn sidebar-action-btn">
+          <span class="btn-icon">💬</span> <span class="btn-text">Clear Room Messages</span>
+        </button>
+        <button id="clear-video-messages-btn" class="btn sidebar-action-btn">
+          <span class="btn-icon">📹</span> <span class="btn-text">Clear Video Call Messages</span>
+        </button>
+      </div>
+    </div>
+  </aside>
+
+  <script src="./app.js?v=sketch7"></script>
+</body>
+</html>
