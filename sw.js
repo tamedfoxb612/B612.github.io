@@ -3,20 +3,21 @@
  * Handles background push notifications and asset caching for offline PWA capabilities.
  */
 
-const CACHE_NAME = 'b612-sketch-v7';
+const CACHE_NAME = 'b612-sketch-v8';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
   './style.css',
   './app.js',
-  './manifest.json'
+  './manifest.json',
+  'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
 ];
 
-// Install Event - Cache assets
+// Install Event - Cache assets for offline and instant slow 4G load
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('Service Worker: Caching App Shell v2');
+      console.log('Service Worker: Caching App Shell for instant load and offline capability');
       return cache.addAll(ASSETS_TO_CACHE);
     }).then(() => self.skipWaiting())
   );
@@ -38,26 +39,40 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch Event - Network-First strategy with Cache Fallback (Ensures live code updates are always seen immediately)
+// Fetch Event - Cache-First Strategy with Network Fallback & Supabase Bypass
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
-  
+
+  const url = event.request.url;
+
+  // Rule 1: Bypass the database - Any network requests going to supabase.co bypass cache completely
+  if (url.includes('supabase.co') || url.includes('supabase.in')) {
+    return;
+  }
+
+  // Standard Cache-First Strategy: Return from cache immediately for instant load on slow 4G or airplane mode
   event.respondWith(
-    fetch(event.request)
-      .then((networkResponse) => {
-        // If network request succeeds, update the cache with the fresh response
-        if (networkResponse && networkResponse.status === 200) {
-          const responseToCache = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
-        }
-        return networkResponse;
-      })
-      .catch(() => {
-        // Fallback to cache when offline
-        return caches.match(event.request);
-      })
+    caches.match(event.request).then((cachedResponse) => {
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+      return fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && (networkResponse.status === 200 || networkResponse.status === 0)) {
+            const responseToCache = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => {
+              cache.put(event.request, responseToCache);
+            });
+          }
+          return networkResponse;
+        })
+        .catch(() => {
+          // Offline fallback for HTML navigation requests
+          if (event.request.mode === 'navigate') {
+            return caches.match('./index.html');
+          }
+        });
+    })
   );
 });
 

@@ -34,6 +34,7 @@
 
 body {
   background-color: var(--bg-main);
+  background: linear-gradient(135deg, var(--bg-gradient-top), var(--bg-gradient-bottom));
   color: var(--text-main);
   font-family: var(--font-sans);
   min-height: 100vh;
@@ -176,7 +177,7 @@ body {
   align-items: center;
   justify-content: center;
   padding: 32px 20px;
-  background: linear-gradient(to bottom, var(--bg-gradient-top), var(--bg-gradient-bottom));
+  background: linear-gradient(135deg, var(--bg-gradient-top), var(--bg-gradient-bottom));
 }
 
 .card {
@@ -352,7 +353,7 @@ input:focus {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background-color: var(--bg-subtle);
+  background: linear-gradient(135deg, var(--bg-gradient-top), var(--bg-gradient-bottom));
 }
 
 /* Left side or full width responsiveness */
@@ -530,7 +531,7 @@ input:focus {
   align-items: center;
   justify-content: flex-start;
   padding: 32px;
-  background: linear-gradient(to bottom, var(--bg-gradient-top), var(--bg-gradient-bottom));
+  background: linear-gradient(135deg, var(--bg-gradient-top), var(--bg-gradient-bottom));
   overflow-y: auto;
   gap: 24px;
 }
@@ -1529,13 +1530,13 @@ body.theme-glass {
 }
 .theme-glass .cam-off-placeholder { background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(18px); color: white; }
 
-/* Pure Purple (from 50% chance purple/yellow) */
+/* Purple Accent (from 50% chance purple/yellow) with Mixed Purple & Golden Yellow Background */
 body.theme-purple {
   --bg-main: #2d1b4e;
   --bg-subtle: #3d266b;
-  --bg-gradient-top: #2d1b4e;
-  --bg-gradient-bottom: #1e1136;
-  --card-bg: #4c3085;
+  --bg-gradient-top: #341a54; /* deep violet purple */
+  --bg-gradient-bottom: #573312; /* warm golden amber dusk */
+  --card-bg: rgba(76, 48, 133, 0.95);
   --card-border: #6d44b8;
   --border-color: #6d44b8;
   --primary: #c084fc;
@@ -1547,13 +1548,13 @@ body.theme-purple {
 }
 .theme-purple .cam-off-placeholder { background: #4a154b; color: #f3e8ff; }
 
-/* Pure Yellow (from 50% chance purple/yellow) */
+/* Yellow Accent (from 50% chance purple/yellow) with Mixed Yellow & Purple Background */
 body.theme-yellow {
   --bg-main: #fefce8;
   --bg-subtle: #fef9c3;
-  --bg-gradient-top: #fefce8;
-  --bg-gradient-bottom: #fef08a;
-  --card-bg: #ffffff;
+  --bg-gradient-top: #fef9c3; /* soft warm yellow */
+  --bg-gradient-bottom: #e9d5ff; /* soft lavender purple */
+  --card-bg: rgba(255, 255, 255, 0.95);
   --card-border: #fde047;
   --border-color: #fde047;
   --primary: #ca8a04;
@@ -1565,13 +1566,13 @@ body.theme-yellow {
 }
 .theme-yellow .cam-off-placeholder { background: #facc15; color: #713f12; }
 
-/* Pure Matcha Green (from 50% chance matcha/strawberry) */
+/* Matcha Green Accent (from 50% chance matcha/strawberry) with Mixed Matcha & Strawberry Background */
 body.theme-matcha {
   --bg-main: #f0fdf4;
   --bg-subtle: #dcfce7;
-  --bg-gradient-top: #f0fdf4;
-  --bg-gradient-bottom: #dcfce7;
-  --card-bg: #ffffff;
+  --bg-gradient-top: #dcfce7; /* matcha green */
+  --bg-gradient-bottom: #fce7f3; /* strawberry pink */
+  --card-bg: rgba(255, 255, 255, 0.95);
   --card-border: #bbf7d0;
   --border-color: #bbf7d0;
   --primary: #16a34a;
@@ -1583,13 +1584,13 @@ body.theme-matcha {
 }
 .theme-matcha .cam-off-placeholder { background: #65a30d; color: #f0fdf4; }
 
-/* Pure Strawberry Pink (from 50% chance matcha/strawberry) */
+/* Strawberry Pink Accent (from 50% chance matcha/strawberry) with Mixed Strawberry & Matcha Background */
 body.theme-strawberry {
   --bg-main: #fdf2f8;
   --bg-subtle: #fce7f3;
-  --bg-gradient-top: #fdf2f8;
-  --bg-gradient-bottom: #fce7f3;
-  --card-bg: #ffffff;
+  --bg-gradient-top: #fce7f3; /* strawberry pink */
+  --bg-gradient-bottom: #dcfce7; /* matcha green */
+  --card-bg: rgba(255, 255, 255, 0.95);
   --card-border: #fbcfe8;
   --border-color: #fbcfe8;
   --primary: #db2777;
