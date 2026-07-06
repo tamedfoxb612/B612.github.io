@@ -38,6 +38,7 @@ const state = {
   circleSpeechEnabled: true,
   pushSubscription: null,
   activitiesCount: 0,
+  unreadCount: 0,
   peerConnections: {},
   remoteStreams: {},
   primaryPeer: null
@@ -119,7 +120,7 @@ const elements = {
   settingsSidebar: document.getElementById('settings-sidebar'),
   sidebarOverlay: document.getElementById('sidebar-overlay'),
   toggleLiveChatBtn: document.getElementById('toggle-live-chat-btn'),
-  toggleTtsBtnRoom: document.getElementById('toggle-tts-btn-room')
+  toggleTtsSidebarBtn: document.getElementById('toggle-tts-sidebar-btn')
 };
 
 // Initialize PWA & Service Worker
@@ -244,7 +245,7 @@ function setupEventListeners() {
   
   elements.toggleCircleSpeechBtn?.addEventListener('click', () => toggleCircleSpeech(true));
   elements.toggleTtsBtn?.addEventListener('click', toggleTts);
-  elements.toggleTtsBtnRoom?.addEventListener('click', toggleTts);
+  elements.toggleTtsSidebarBtn?.addEventListener('click', toggleTts);
   elements.toggleLiveChatBtn?.addEventListener('click', () => {
     elements.videoChatOverlay?.classList.toggle('collapsed');
   });
@@ -315,7 +316,24 @@ function setupEventListeners() {
       elements.minimizeVideoChat.textContent = isMinimized ? '+' : '─';
       elements.minimizeVideoChat.title = isMinimized ? 'Expand Live Chat' : 'Minimize Live Chat';
     }
+    if (!isMinimized) clearUnreadMessages();
   });
+
+  elements.messageInput?.addEventListener('focus', clearUnreadMessages);
+  elements.messageInput?.addEventListener('click', clearUnreadMessages);
+  elements.videoChatInput?.addEventListener('focus', clearUnreadMessages);
+  elements.videoChatInput?.addEventListener('click', clearUnreadMessages);
+  window.addEventListener('focus', () => {
+    if (!state.inCall || !elements.videoChatOverlay?.classList.contains('minimized')) {
+      clearUnreadMessages();
+    }
+  });
+}
+
+function clearUnreadMessages() {
+  if (state.unreadCount === 0) return;
+  state.unreadCount = 0;
+  document.querySelectorAll('.unread-divider').forEach(el => el.remove());
 }
 
 function handleRoomHeartClick(e) {
@@ -676,6 +694,29 @@ function appendFeedItem(type, content, sender, timeObj, animate = true) {
     showCircleSpeechBubble(isSelf ? 'local' : 'remote', cleanContent);
   }
 
+  if (isSelf) {
+    clearUnreadMessages();
+  } else if (animate) {
+    const isUnread = document.hidden || (state.inCall && (elements.videoChatOverlay?.classList.contains('minimized') || elements.videoChatOverlay?.classList.contains('hidden')));
+    if (isUnread) {
+      state.unreadCount = (state.unreadCount || 0) + 1;
+      if (state.unreadCount === 1) {
+        const divider = document.createElement('div');
+        divider.className = 'unread-divider';
+        divider.innerHTML = `<span>1 unread message</span>`;
+        elements.chatFeed.appendChild(divider);
+        if (elements.videoChatFeed) {
+          const vDivider = divider.cloneNode(true);
+          elements.videoChatFeed.appendChild(vDivider);
+        }
+      } else {
+        document.querySelectorAll('.unread-divider span').forEach(sp => {
+          sp.textContent = `${state.unreadCount} unread messages`;
+        });
+      }
+    }
+  }
+
   let vItem = null;
   const delBtn = item.querySelector('.msg-delete-btn');
   delBtn?.addEventListener('click', () => {
@@ -705,7 +746,7 @@ function appendFeedItem(type, content, sender, timeObj, animate = true) {
   }
 
   // Text To Speech (TTS) for messages using distinct voices without prefix
-  if (state.ttsEnabled && type === 'message' && ('speechSynthesis' in window)) {
+  if (state.inCall && state.ttsEnabled && type === 'message' && ('speechSynthesis' in window)) {
     try {
       // Clean off any prefixes or tags completely
       const cleanText = content
@@ -1631,7 +1672,12 @@ function toggleTts() {
     elements.toggleTtsBtn.innerHTML = state.ttsEnabled ? '<span>🔊 TTS: On</span>' : '<span>🔊 TTS: Off</span>';
     elements.toggleTtsBtn.classList.toggle('active', state.ttsEnabled);
   }
-  showToast(state.ttsEnabled ? '🔊 Message Speech (TTS) enabled for your & partner messages' : '🔇 Message Speech disabled');
+  if (elements.toggleTtsSidebarBtn) {
+    const textSpan = elements.toggleTtsSidebarBtn.querySelector('.btn-text');
+    if (textSpan) textSpan.textContent = state.ttsEnabled ? 'Message TTS: On' : 'Message TTS: Off';
+    elements.toggleTtsSidebarBtn.classList.toggle('active', state.ttsEnabled);
+  }
+  showToast(state.ttsEnabled ? '🔊 Message Speech (TTS) enabled for webcall' : '🔇 Message Speech disabled');
 }
 
 // =========================================================================

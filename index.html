@@ -60,15 +60,11 @@
       <header class="room-header">
         <div class="room-info">
           <button id="leave-room-btn" class="btn btn-icon-small btn-leave" title="Leave Room">🚪</button>
-          <span class="room-badge">ROOM</span>
-          <h3 id="current-room-code">B612</h3>
           <span id="feed-count" class="activities-count">0 messages</span>
         </div>
         <div class="room-top-actions">
           <!-- Button at topright to enter video call room -->
           <button id="notify-call-btn" class="btn btn-icon-small btn-call-invite" title="Enter Video Call Room">📹</button>
-          <!-- Button to toggle text to speech for messages -->
-          <button id="toggle-tts-btn-room" class="btn btn-icon-small toggle-tts-trigger" title="Toggle Message TTS">🔊</button>
           <!-- 3 line slider button to open sidebar -->
           <button id="open-sidebar-btn-room" class="btn btn-icon-small open-sidebar-trigger" title="Open Settings & Tools">☰</button>
         </div>
@@ -79,13 +75,13 @@
         <div id="chat-feed" class="chat-feed">
           <div class="empty-feed">
             <p>messages here</p>
-            <span class="empty-hint">Press heart without text to send pager heart.<br>Type text and press heart to send message.</span>
           </div>
         </div>
       </main>
 
       <!-- Bottom Bar (Sketch 1: Input Box + Heart Button) -->
       <footer class="room-bottom-bar">
+        <div class="room-code-above-input">Room Code: <strong id="current-room-code">B612</strong></div>
         <form id="message-form" class="room-input-form">
           <input type="text" id="message-input" placeholder="Type a sweet message or press heart..." autocomplete="off" />
           <button type="submit" id="room-heart-btn" class="btn-giant-heart-action" aria-label="Send Heart or Message">
@@ -202,45 +198,6 @@
         </footer>
     </div>
 
-    <!-- Slide-out Settings Sidebar Drawer -->
-    <div id="sidebar-overlay" class="sidebar-overlay hidden"></div>
-    <aside id="settings-sidebar" class="settings-sidebar hidden">
-      <div class="sidebar-header">
-        <h3>Settings & Tools</h3>
-        <button id="close-sidebar-btn" class="btn-icon-small" title="Close Sidebar">✕</button>
-      </div>
-      <div class="sidebar-content">
-        <div class="sidebar-section">
-          <label class="sidebar-label">🎨 Page / Room Theme</label>
-          <div class="sidebar-theme-grid">
-            <button class="theme-item" data-theme="slate">🤎 Warm Slate</button>
-            <button class="theme-item" data-theme="electric-blue">⚡ Electric Blue</button>
-            <button class="theme-item" data-theme="pastel-blue">🫧 Pastel Blue</button>
-            <button class="theme-item" data-theme="glass">🔮 Transparent Glass</button>
-            <button class="theme-item" data-theme="purple-yellow">💜 / 💛 Purple or Yellow (50%)</button>
-            <button class="theme-item" data-theme="matcha-strawberry">🍵 / 🍓 Matcha or Strawberry (50%)</button>
-          </div>
-        </div>
-
-        <div class="sidebar-section">
-          <label class="sidebar-label">💭 Speech Bubbles</label>
-          <button id="toggle-circle-speech-btn" class="btn sidebar-action-btn active">
-            <span class="btn-icon">💭</span> <span class="btn-text">Circle Speech Bubbles: On</span>
-          </button>
-        </div>
-
-        <div class="sidebar-section">
-          <label class="sidebar-label">🗑️ Message History</label>
-          <button id="clear-room-messages-btn" class="btn sidebar-action-btn">
-            <span class="btn-icon">💬</span> <span class="btn-text">Clear Room Messages</span>
-          </button>
-          <button id="clear-video-messages-btn" class="btn sidebar-action-btn">
-            <span class="btn-icon">📹</span> <span class="btn-text">Clear Video Call Messages</span>
-          </button>
-        </div>
-      </div>
-    </aside>
-
     <!-- Push Notifications Urge Modal (shown before entering room) -->
     <div id="notif-urge-modal" class="modal-overlay hidden">
       <div class="modal-card notif-urge-card">
@@ -254,6 +211,52 @@
       </div>
     </div>
   </div>
+
+  <!-- Slide-out Settings Sidebar Drawer (moved outside app-container so fixed positioning never breaks) -->
+  <div id="sidebar-overlay" class="sidebar-overlay hidden"></div>
+  <aside id="settings-sidebar" class="settings-sidebar hidden">
+    <div class="sidebar-header">
+      <h3>Settings & Tools</h3>
+      <button id="close-sidebar-btn" class="btn-icon-small" title="Close Sidebar">✕</button>
+    </div>
+    <div class="sidebar-content">
+      <div class="sidebar-section">
+        <label class="sidebar-label">🎨 Page / Room Theme</label>
+        <div class="sidebar-theme-grid">
+          <button class="theme-item" data-theme="slate">🤎 Warm Slate</button>
+          <button class="theme-item" data-theme="electric-blue">⚡ Electric Blue</button>
+          <button class="theme-item" data-theme="pastel-blue">🫧 Pastel Blue</button>
+          <button class="theme-item" data-theme="glass">🔮 Transparent Glass</button>
+          <button class="theme-item" data-theme="purple-yellow">💜 / 💛 Purple or Yellow (50%)</button>
+          <button class="theme-item" data-theme="matcha-strawberry">🍵 / 🍓 Matcha or Strawberry (50%)</button>
+        </div>
+      </div>
+
+      <div class="sidebar-section" id="tts-sidebar-section">
+        <label class="sidebar-label">🔊 Text-To-Speech (Webcall Only)</label>
+        <button id="toggle-tts-sidebar-btn" class="btn sidebar-action-btn">
+          <span class="btn-icon">🔊</span> <span class="btn-text">Message TTS: Off</span>
+        </button>
+      </div>
+
+      <div class="sidebar-section">
+        <label class="sidebar-label">💭 Speech Bubbles</label>
+        <button id="toggle-circle-speech-btn" class="btn sidebar-action-btn active">
+          <span class="btn-icon">💭</span> <span class="btn-text">Circle Speech Bubbles: On</span>
+        </button>
+      </div>
+
+      <div class="sidebar-section">
+        <label class="sidebar-label">🗑️ Message History</label>
+        <button id="clear-room-messages-btn" class="btn sidebar-action-btn">
+          <span class="btn-icon">💬</span> <span class="btn-text">Clear Room Messages</span>
+        </button>
+        <button id="clear-video-messages-btn" class="btn sidebar-action-btn">
+          <span class="btn-icon">📹</span> <span class="btn-text">Clear Video Call Messages</span>
+        </button>
+      </div>
+    </div>
+  </aside>
 
   <script src="./app.js?v=sketch7"></script>
 </body>

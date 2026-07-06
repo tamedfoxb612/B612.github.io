@@ -912,7 +912,7 @@ input:focus {
 }
 
 .room-bottom-bar {
-  padding: 16px 24px;
+  padding: 12px 24px 16px;
   background-color: var(--card-bg);
   border-top: 1px solid var(--border-color);
   flex-shrink: 0;
@@ -920,6 +920,48 @@ input:focus {
   bottom: 0;
   z-index: 10;
   box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
+}
+
+.room-code-above-input {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin-bottom: 8px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.room-code-above-input strong {
+  color: var(--text-main);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+/* Unread Messages Line Divider */
+.unread-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 14px 0;
+  color: var(--danger, #ef4444);
+  font-size: 0.75rem;
+  font-weight: 700;
+  width: 100%;
+  letter-spacing: 0.04em;
+}
+.unread-divider::before,
+.unread-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background-color: currentColor;
+  opacity: 0.4;
+}
+.unread-divider::before {
+  margin-right: 12px;
+}
+.unread-divider::after {
+  margin-left: 12px;
 }
 
 .room-input-form {
@@ -1949,6 +1991,9 @@ body.theme-strawberry {
   #current-room-code {
     font-size: 1.05rem;
   }
+  #toggle-tts-btn {
+    display: none !important;
+  }
   .video-bottom-bar {
     padding: 10px 14px;
   }
@@ -1978,31 +2023,33 @@ body.theme-strawberry {
 
 /* Sidebar Drawer */
 .sidebar-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  position: fixed !important;
+  inset: 0 !important;
+  background: rgba(0, 0, 0, 0.6) !important;
   backdrop-filter: blur(4px);
-  z-index: 100010;
+  z-index: 100010 !important;
   transition: opacity 0.3s ease;
 }
 .sidebar-overlay.hidden {
-  opacity: 0;
-  pointer-events: none;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 .settings-sidebar {
-  position: fixed;
-  top: 0;
-  right: 0;
-  bottom: 0;
-  width: 320px;
-  max-width: 85vw;
-  background: var(--card-bg);
-  border-left: 1px solid var(--border-color);
-  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.4);
-  z-index: 100020;
-  display: flex;
-  flex-direction: column;
-  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+  position: fixed !important;
+  top: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  width: 320px !important;
+  max-width: 85vw !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  background: var(--card-bg) !important;
+  border-left: 1px solid var(--border-color) !important;
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.4) !important;
+  z-index: 100020 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 .settings-sidebar.hidden {
   transform: translateX(100%);
