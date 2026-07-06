@@ -3,15 +3,12 @@
  * Handles background push notifications and asset caching for offline PWA capabilities.
  */
 
-const CACHE_NAME = 'b612-playtogether-v2';
+const CACHE_NAME = 'b612-v3';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
-  './style.css?v=playtogether2',
-  './app.js?v=playtogether2',
-  './play.html',
-  './play.js?v=playtogether2',
-  './fbwg.html',
+  './style.css?v=3',
+  './app.js?v=3',
   './manifest.json',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
 ];

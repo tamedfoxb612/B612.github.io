@@ -30,8 +30,6 @@ const state = {
   isMuted: false,
   isCamOff: false,
   isScreenSharing: false,
-  isArcadeActive: false,
-  partnerArcadeActive: false,
   enlargedPane: null,
   isImmersiveMode: false,
   activeTheme: 'slate',
@@ -124,8 +122,6 @@ const elements = {
   sidebarOverlay: document.getElementById('sidebar-overlay'),
   toggleLiveChatBtn: document.getElementById('toggle-live-chat-btn'),
   toggleTtsSidebarBtn: document.getElementById('toggle-tts-sidebar-btn'),
-  playTogetherBtn: document.getElementById('play-together-btn'),
-  playArcadeBtn: document.getElementById('play-arcade-btn'),
 };
 
 // Initialize PWA & Service Worker
@@ -271,30 +267,6 @@ function setupEventListeners() {
   elements.toggleTtsSidebarBtn?.addEventListener('click', toggleTts);
   elements.toggleLiveChatBtn?.addEventListener('click', () => {
     elements.videoChatOverlay?.classList.toggle('collapsed');
-  });
-
-  elements.playTogetherBtn?.addEventListener('click', () => {
-    window.location.href = './play.html?room=' + encodeURIComponent(state.roomCode) + '&user=' + encodeURIComponent(state.userName);
-  });
-  
-  // New Arcade Button
-  elements.playArcadeBtn?.addEventListener('click', () => {
-    window.location.href = './play.html?room=' + encodeURIComponent(state.roomCode) + '&user=' + encodeURIComponent(state.userName);
-  });
-
-  elements.closeArcadeBtn?.addEventListener('click', () => {
-    state.isArcadeActive = false;
-    updateVideoLayout();
-    sendSignaling({ type: 'arcade-toggle', isActive: false, sender: state.userName });
-  });
-
-  window.addEventListener('message', (event) => {
-    const data = event.data;
-    if (data && data.type === 'arcade-play') {
-      sendSignaling({ type: 'arcade-play', swfUrl: data.swfUrl, gameTitle: data.gameTitle, sender: state.userName });
-    } else if (data && data.type === 'arcade-back') {
-      sendSignaling({ type: 'arcade-back', sender: state.userName });
-    }
   });
 
   // Interactive Click-to-Enlarge & Draggable PiP / Circles
@@ -564,7 +536,7 @@ function processIncomingRelayEvent(data) {
     seenEventIds.delete(first);
   }
   if (data.sender === state.userName) return;
-  if (data.signaling || ['offer', 'answer', 'ice-candidate', 'call-invite', 'call-accept', 'call-decline', 'theme-change', 'cam-toggle', 'screen-share-toggle', 'toggle-circle-speech', 'end-call', 'clear-messages', 'clear-video-messages', 'game-input', 'arcade-toggle', 'arcade-play', 'arcade-back'].includes(data.type)) {
+  if (data.signaling || ['offer', 'answer', 'ice-candidate', 'call-invite', 'call-accept', 'call-decline', 'theme-change', 'cam-toggle', 'screen-share-toggle', 'toggle-circle-speech', 'end-call', 'clear-messages', 'clear-video-messages'].includes(data.type)) {
     handleSignalingMessage(data);
   } else {
     handleIncomingPayload(data);
@@ -652,7 +624,7 @@ function setupRealtimeSubscription() {
  */
 function handleIncomingPayload(data) {
   if (!data) return;
-  if (data.signaling || ['offer', 'answer', 'ice-candidate', 'call-invite', 'call-accept', 'call-decline', 'theme-change', 'cam-toggle', 'screen-share-toggle', 'toggle-circle-speech', 'end-call', 'clear-messages', 'clear-video-messages', 'game-input', 'arcade-toggle', 'arcade-play', 'arcade-back'].includes(data.type)) {
+  if (data.signaling || ['offer', 'answer', 'ice-candidate', 'call-invite', 'call-accept', 'call-decline', 'theme-change', 'cam-toggle', 'screen-share-toggle', 'toggle-circle-speech', 'end-call', 'clear-messages', 'clear-video-messages'].includes(data.type)) {
     handleSignalingMessage(data);
     return;
   }
@@ -1090,31 +1062,6 @@ function sendSignaling(payload) {
   relaySend({ signaling: true, ...payload });
 }
 
-function captureGameInput(player) {
-    const handler = (e) => {
-        if (state.isArcadeActive || state.partnerArcadeActive) {
-            if (e.type.startsWith('key')) {
-                 relaySend({ type: 'game-input', input: { type: e.type, key: e.key, code: e.code } });
-            } else if (e.type.startsWith('mouse') || e.type === 'click') {
-                 relaySend({ type: 'game-input', input: { type: e.type, x: e.clientX, y: e.clientY } });
-            }
-        }
-    };
-    ['keydown', 'keyup', 'mousedown', 'mouseup', 'mousemove', 'click'].forEach(evt => player.addEventListener(evt, handler));
-}
-
-function simulateGameInput(input) {
-    const playerContainer = elements.playerContainer || document.getElementById('player-container');
-    const player = playerContainer?.querySelector('ruffle-player');
-    if (!player) return;
-    
-    if (input.type.startsWith('key')) {
-        player.dispatchEvent(new KeyboardEvent(input.type, { key: input.key, code: input.code }));
-    } else {
-        player.dispatchEvent(new MouseEvent(input.type, { clientX: input.x, clientY: input.y }));
-    }
-}
-
 let speechBubbleTimeouts = { local: null, remote: null };
 
 function showCircleSpeechBubble(targetPane, text) {
@@ -1166,9 +1113,6 @@ async function handleSignalingMessage(data) {
   } else if (data.type === 'clear-video-messages') {
     clearVideoMessages(false);
     return;
-  } else if (data.type === 'game-input') {
-    simulateGameInput(data.input);
-    return;
   } else if (data.type === 'toggle-circle-speech') {
     state.circleSpeechEnabled = data.enabled;
     document.body.classList.toggle('circle-speech-on', state.circleSpeechEnabled);
@@ -1194,26 +1138,6 @@ async function handleSignalingMessage(data) {
       elements.screenShareContainer?.classList.add('hidden');
     }
     updateVideoLayout();
-    return;
-  } else if (data.type === 'arcade-toggle') {
-    state.partnerArcadeActive = data.isActive;
-    const iframe = document.getElementById('arcade-iframe');
-    if (data.isActive && iframe && (iframe.src === 'about:blank' || !iframe.srcdoc)) {
-      iframe.src = '/pwa/arcade.html';
-    }
-    updateVideoLayout();
-    return;
-  } else if (data.type === 'arcade-play') {
-    const iframe = document.getElementById('arcade-iframe');
-    if (iframe && iframe.contentWindow) {
-      iframe.contentWindow.postMessage({ type: 'arcade-play', swfUrl: data.swfUrl, gameTitle: data.gameTitle }, '*');
-    }
-    return;
-  } else if (data.type === 'arcade-back') {
-    const iframe = document.getElementById('arcade-iframe');
-    if (iframe && iframe.contentWindow) {
-      iframe.contentWindow.postMessage({ type: 'arcade-back' }, '*');
-    }
     return;
   }
 
@@ -1614,8 +1538,7 @@ function updateVideoLayout() {
   if (!wrapper) return;
 
   const isScreenShareMode = state.isScreenSharing || state.partnerScreenSharing;
-  const isArcadeMode = state.isArcadeActive || state.partnerArcadeActive;
-  const isCircleMode = isScreenShareMode || isArcadeMode;
+  const isCircleMode = isScreenShareMode;
 
   document.body.classList.toggle('layout-circles-active', isCircleMode);
 
@@ -1632,13 +1555,6 @@ function updateVideoLayout() {
   } else {
     elements.screenShareContainer?.classList.add('hidden');
     if (elements.screenShareVideo) elements.screenShareVideo.classList.add('hidden');
-  }
-
-  const arcadeViewport = document.getElementById('arcade-viewport');
-  if (isArcadeMode) {
-    arcadeViewport?.classList.remove('hidden');
-  } else {
-    arcadeViewport?.classList.add('hidden');
   }
 
   // Reset custom positioning coordinates when returning to default side-by-side
@@ -1910,9 +1826,6 @@ async function toggleScreenShare() {
     sendSignaling({ type: 'screen-share-toggle', isScreenSharing: false, sender: state.userName });
     showToast('Screen sharing stopped.');
   } else {
-    if (state.isArcadeActive) {
-      togglePlayTogether();
-    }
     try {
       state.screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
       const screenTrack = state.screenStream.getVideoTracks()[0];

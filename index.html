@@ -11,7 +11,7 @@
   <!-- Supabase JS CDN -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   
-  <link rel="stylesheet" href="./style.css?v=playtogether2">
+  <link rel="stylesheet" href="./style.css?v=3">
 </head>
 <body>
   <!-- Toast Notification Container (No native browser alert/confirm allowed!) -->
@@ -155,11 +155,6 @@
             <video id="screen-share-video" autoplay playsinline></video>
           </div>
 
-          <!-- Arcade Viewport Pane -->
-          <div id="arcade-viewport" class="video-pane arcade-pane hidden">
-            <iframe src="about:blank" id="arcade-iframe"></iframe>
-          </div>
-
           <!-- Local Video Pane -->
           <div id="local-video-container" class="video-pane local-pane" style="flex: 50;">
             <video id="local-video" autoplay playsinline muted></video>
@@ -195,7 +190,6 @@
               <button id="toggle-mute-btn" class="btn btn-round-ctrl" title="Mute/Unmute Audio">🎙️</button>
               <button id="toggle-cam-btn" class="btn btn-round-ctrl" title="Turn Camera On/Off">📷</button>
               <button id="toggle-screen-btn" class="btn btn-round-ctrl screen-share-btn" title="Share Screen">🖥️</button>
-              <button id="play-arcade-btn" class="btn btn-round-ctrl play-arcade-btn" title="Play Arcade">🕹️</button>
             </div>
             <div class="chat-toggle-group">
               <button id="toggle-live-chat-btn" class="btn btn-round-ctrl live-chat-toggle" title="Toggle Live Chat">💬</button>
@@ -265,6 +259,6 @@
     </div>
   </aside>
 
-  <script src="./app.js?v=playtogether2"></script>
+  <script src="./app.js?v=3"></script>
 </body>
 </html>

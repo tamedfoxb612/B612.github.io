@@ -1325,9 +1325,8 @@ input:focus {
   overflow: hidden;
 }
 
-/* 3. Screen Share & Arcade Floating Circles Mode */
-.video-panes-wrapper.layout-circles .screen-pane,
-.video-panes-wrapper.layout-circles .arcade-pane {
+/* 3. Screen Share Floating Circles Mode */
+.video-panes-wrapper.layout-circles .screen-pane {
   position: absolute !important;
   inset: 0 !important;
   width: 100% !important;
@@ -1347,33 +1346,6 @@ input:focus {
   display: none !important;
 }
 
-/* Arcade Viewport Styling inside video-panes-wrapper */
-.arcade-pane,
-#arcade-viewport {
-  width: 100%;
-  height: 100%;
-  background: transparent;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-#arcade-viewport.hidden,
-.arcade-pane.hidden {
-  display: none !important;
-}
-
-#arcade-iframe {
-  width: 90%;
-  max-width: 1200px;
-  height: 85%;
-  max-height: 800px;
-  border-radius: 12px;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.7);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: #0d1117;
-  flex: none;
-}
 
 .video-panes-wrapper.layout-circles .video-resizer {
   display: none !important;
@@ -1982,170 +1954,6 @@ body.theme-strawberry {
   transition: all 0.2s ease;
 }
 
-.btn-round-ctrl.play-together-btn {
-  background: var(--primary);
-  border-color: var(--primary);
-}
-
-/* Arcade Vault Styles inside video-panes-wrapper */
-.arcade-pane {
-  display: flex;
-  flex-direction: column;
-  background: #0d1117;
-  color: #c9d1d9;
-  overflow: hidden;
-  position: relative;
-  width: 100%;
-  height: 100%;
-}
-
-.arcade-header {
-  padding: 15px 24px;
-  background: #161b22;
-  border-bottom: 1px solid #30363d;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 15px;
-  z-index: 5;
-}
-
-.arcade-search-box {
-  display: flex;
-  gap: 10px;
-  flex: 1;
-  max-width: 500px;
-}
-
-.arcade-search-box input {
-  flex-grow: 1;
-  padding: 8px 12px;
-  background: #0d1117;
-  border: 1px solid #30363d;
-  border-radius: 6px;
-  color: white;
-  font-size: 14px;
-}
-
-.arcade-search-box button {
-  padding: 8px 16px;
-  background: #238636;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  font-weight: bold;
-}
-
-#game-selector-container {
-  flex: 1;
-  overflow-y: auto;
-  padding: 24px;
-  width: 100%;
-}
-
-#game-selector-container #results {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 16px;
-  max-width: 1200px;
-  margin: 0 auto;
-}
-
-.result-card {
-  background: #161b22;
-  border: 1px solid #30363d;
-  border-radius: 8px;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  transition: transform 0.2s, border-color 0.2s;
-  padding: 0;
-}
-
-.result-card:hover {
-  transform: translateY(-5px);
-  border-color: #58a6ff;
-}
-
-.thumbnail-container {
-  width: 100%;
-  height: 140px;
-  background-color: #000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-  position: relative;
-}
-
-.thumbnail {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.fallback-text {
-  color: #484f58;
-  font-size: 0.8em;
-  font-family: monospace;
-}
-
-.result-info {
-  padding: 14px;
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.result-title {
-  font-weight: bold;
-  color: #e6edf3;
-  font-size: 0.95rem;
-  line-height: 1.3;
-  word-break: break-word;
-}
-
-.play-btn {
-  background: #1f6feb;
-  color: white;
-  border: none;
-  width: 100%;
-  padding: 10px;
-  border-radius: 6px;
-  text-align: center;
-  font-weight: bold;
-  cursor: pointer;
-  transition: background 0.2s;
-}
-
-.play-btn:hover {
-  background: #388bfd;
-}
-
-#player-container {
-  flex: 1 1 auto !important;
-  min-height: 400px !important;
-  width: 100% !important;
-  height: 100% !important;
-  background: #0d1117;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  position: relative !important;
-  z-index: 1 !important;
-  overflow: hidden;
-}
-
-#player-container ruffle-player,
-#player-container ruffle-player canvas {
-  width: 100% !important;
-  height: 100% !important;
-  min-height: 400px !important;
-  display: block !important;
-}
 
 .btn-round-ctrl.active-off {
   background: var(--danger);
