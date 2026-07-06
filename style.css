@@ -1832,81 +1832,6 @@ body.theme-strawberry {
   text-align: center;
 }
 
-/* Console Log Modal Styles */
-.console-modal-card {
-  max-width: 560px !important;
-  text-align: left !important;
-  display: flex;
-  flex-direction: column;
-  max-height: 80vh;
-}
-
-.console-modal-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--border-color);
-  padding-bottom: 12px;
-  margin-bottom: 14px;
-}
-
-.console-modal-header h3 {
-  font-size: 1.15rem;
-  font-weight: 700;
-  color: var(--text-main);
-}
-
-.btn-close-modal {
-  background: transparent;
-  border: none;
-  font-size: 1.3rem;
-  color: var(--text-muted);
-  cursor: pointer;
-}
-
-.console-log-list {
-  flex: 1;
-  overflow-y: auto;
-  max-height: 400px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding-right: 6px;
-  margin-bottom: 16px;
-}
-
-.console-empty {
-  color: var(--text-muted);
-  font-style: italic;
-  font-size: 0.9rem;
-  text-align: center;
-  padding: 20px 0;
-}
-
-.console-log-item {
-  font-family: monospace;
-  font-size: 0.82rem;
-  padding: 8px 12px;
-  background: var(--bg-subtle);
-  border-left: 3px solid var(--primary);
-  border-radius: 6px;
-  color: var(--text-main);
-  word-break: break-word;
-}
-
-.console-log-item.success { border-left-color: var(--success); }
-.console-log-item.error { border-left-color: var(--danger); background: rgba(239, 68, 68, 0.08); }
-.console-log-item.info { border-left-color: #3b82f6; }
-
-.console-badge {
-  background: var(--danger);
-  color: white;
-  font-size: 0.7rem;
-  padding: 2px 6px;
-  border-radius: 9999px;
-  margin-left: 4px;
-}
-
 /* Responsive Mobile Top Bar & Multi-Person Layouts */
 @media (max-width: 680px) {
   .room-top-actions .btn-text,
@@ -1920,10 +1845,14 @@ body.theme-strawberry {
     justify-content: center;
   }
   .room-header, .video-top-bar {
-    padding: 10px 14px;
+    padding: 10px 12px;
+    gap: 6px;
+  }
+  .top-left-controls, .top-right-controls {
+    gap: 4px;
   }
   #current-room-code {
-    font-size: 1.1rem;
+    font-size: 1.05rem;
   }
 }
 

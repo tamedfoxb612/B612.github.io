@@ -3,7 +3,7 @@
  * Handles background push notifications and asset caching for offline PWA capabilities.
  */
 
-const CACHE_NAME = 'b612-sketch-v6';
+const CACHE_NAME = 'b612-sketch-v7';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',

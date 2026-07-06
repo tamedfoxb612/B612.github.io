@@ -38,7 +38,9 @@ const state = {
   circleSpeechEnabled: true,
   pushSubscription: null,
   activitiesCount: 0,
-  consoleLogs: []
+  peerConnections: {},
+  remoteStreams: {},
+  primaryPeer: null
 };
 
 // Google STUN Servers for reliable P2P WebRTC connection
@@ -87,24 +89,14 @@ const elements = {
   roomThemeMenu: document.getElementById('room-theme-menu'),
   frontThemeBtn: document.getElementById('front-theme-btn'),
   frontThemeMenu: document.getElementById('front-theme-menu'),
-  roomConsoleBtn: document.getElementById('room-console-btn'),
-  videoConsoleBtn: document.getElementById('video-console-btn'),
-  consoleBadge: document.getElementById('console-badge'),
-  consoleLogModal: document.getElementById('console-log-modal'),
-  consoleLogList: document.getElementById('console-log-list'),
-  closeConsoleBtn: document.getElementById('close-console-btn'),
-  clearConsoleBtn: document.getElementById('clear-console-btn'),
   themeColorBtn: document.getElementById('theme-color-btn'),
   themeMenu: document.getElementById('theme-menu'),
   remoteCamOff: document.getElementById('remote-cam-off'),
   localCamOff: document.getElementById('local-cam-off'),
-  toggleChatBgBtn: document.getElementById('toggle-chat-bg-btn'),
   toggleCircleSpeechBtn: document.getElementById('toggle-circle-speech-btn'),
   toggleTtsBtn: document.getElementById('toggle-tts-btn'),
   remoteCircleSpeech: document.getElementById('remote-circle-speech'),
   localCircleSpeech: document.getElementById('local-circle-speech'),
-  exitFullscreenTrigger: document.getElementById('exit-fullscreen-trigger'),
-  exitFullscreenBtn: document.getElementById('exit-fullscreen-btn'),
   videoPanesWrapper: document.getElementById('video-panes-wrapper'),
   remoteVideoContainer: document.getElementById('remote-video-container'),
   localVideoContainer: document.getElementById('local-video-container'),
@@ -130,40 +122,7 @@ window.addEventListener('DOMContentLoaded', () => {
   loadSavedCredentials();
 });
 
-/**
- * System Console Logs & Toast Wrapper
- */
-function logToConsole(message, type = 'info') {
-  if (!state.consoleLogs) state.consoleLogs = [];
-  state.consoleLogs.push({
-    timestamp: new Date().toLocaleTimeString(),
-    message,
-    type
-  });
-  if (elements.consoleBadge) {
-    elements.consoleBadge.textContent = state.consoleLogs.length;
-    elements.consoleBadge.classList.remove('hidden');
-  }
-  renderConsoleLogs();
-}
-
-function renderConsoleLogs() {
-  if (!elements.consoleLogList) return;
-  if (!state.consoleLogs || state.consoleLogs.length === 0) {
-    elements.consoleLogList.innerHTML = '<p class="console-empty">No console messages yet.</p>';
-    return;
-  }
-  elements.consoleLogList.innerHTML = state.consoleLogs.map(log => `
-    <div class="console-log-item ${log.type}">
-      <span style="opacity:0.75; font-size: 0.78rem;">[${log.timestamp}]</span> ${log.message}
-    </div>
-  `).join('');
-  elements.consoleLogList.scrollTop = elements.consoleLogList.scrollHeight;
-}
-
 function showToast(message, type = 'info', duration = 4000) {
-  logToConsole(message, type);
-  // Only display intrusive visual toast for hard errors
   if (type === 'error' && elements.toastContainer) {
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
@@ -178,7 +137,8 @@ function showToast(message, type = 'info', duration = 4000) {
   }
 }
 
-function showNativeNotification(title, body) {
+function showNativeNotification(title, body, force = false) {
+  if (!force && !document.hidden) return;
   if (!('Notification' in window)) return;
   if (Notification.permission === 'granted') {
     const options = {
@@ -274,7 +234,6 @@ function setupEventListeners() {
   elements.clearVideoMessagesBtn?.addEventListener('click', clearVideoMessages);
   
   elements.toggleCircleSpeechBtn?.addEventListener('click', () => toggleCircleSpeech(true));
-  elements.exitFullscreenBtn?.addEventListener('click', exitImmersiveFullscreen);
   elements.toggleTtsBtn?.addEventListener('click', toggleTts);
   
   // Interactive Click-to-Enlarge & Draggable PiP / Circles
@@ -795,18 +754,94 @@ async function initiateVideoCall() {
   }
 }
 
-function setupPeerConnection() {
-  state.peerConnection = new RTCPeerConnection(ICE_SERVERS);
+function renderRemoteParticipants() {
+  const peers = Object.keys(state.remoteStreams || {});
+  if (peers.length === 0) {
+    if (elements.remoteVideo) elements.remoteVideo.srcObject = null;
+    if (elements.remoteWaitingOverlay) elements.remoteWaitingOverlay.style.display = 'flex';
+    return;
+  }
+
+  if (elements.remoteWaitingOverlay) elements.remoteWaitingOverlay.style.display = 'none';
+
+  if (!state.primaryPeer || !peers.includes(state.primaryPeer)) {
+    state.primaryPeer = peers[0];
+  }
+
+  if (elements.remoteVideo && elements.remoteVideo.srcObject !== state.remoteStreams[state.primaryPeer]) {
+    elements.remoteVideo.srcObject = state.remoteStreams[state.primaryPeer];
+    elements.remoteVideo.play().catch(e => console.debug(e));
+  }
+  const mainLabel = elements.remoteVideoContainer?.querySelector('.pane-label');
+  if (mainLabel) mainLabel.textContent = state.primaryPeer;
+
+  const wrapper = elements.videoPanesWrapper;
+  if (!wrapper) return;
+
+  peers.forEach(peer => {
+    if (peer === state.primaryPeer) {
+      const existingExtra = document.getElementById(`remote-container-${peer}`);
+      if (existingExtra) existingExtra.remove();
+      return;
+    }
+    let extraPane = document.getElementById(`remote-container-${peer}`);
+    if (!extraPane) {
+      extraPane = document.createElement('div');
+      extraPane.id = `remote-container-${peer}`;
+      extraPane.className = 'video-pane remote-pane extra-remote-pane';
+      extraPane.style.cssText = 'flex: 50; position: relative;';
+      extraPane.innerHTML = `
+        <video id="remote-video-${peer}" autoplay playsinline></video>
+        <div class="cam-off-placeholder hidden">
+          <div class="cam-off-avatar">🧑</div>
+          <span class="cam-off-text">${peer} Cam Off</span>
+        </div>
+        <span class="pane-label">${peer}</span>
+        <div class="custom-pane-resizer" title="Drag to resize">↘</div>
+      `;
+      extraPane.addEventListener('click', () => {
+        state.primaryPeer = peer;
+        renderRemoteParticipants();
+        showToast(`Switched main view to ${peer}`);
+      });
+      if (typeof setupPaneDragging === 'function') setupPaneDragging(extraPane);
+      if (typeof setupPaneResizer === 'function') setupPaneResizer(extraPane);
+      wrapper.insertBefore(extraPane, elements.localVideoContainer);
+    }
+    const vidEl = extraPane.querySelector('video');
+    if (vidEl && vidEl.srcObject !== state.remoteStreams[peer]) {
+      vidEl.srcObject = state.remoteStreams[peer];
+      vidEl.play().catch(e => console.debug(e));
+    }
+  });
+
+  document.querySelectorAll('.extra-remote-pane').forEach(el => {
+    const pName = el.id.replace('remote-container-', '');
+    if (!peers.includes(pName) || pName === state.primaryPeer) {
+      el.remove();
+    }
+  });
+
+  if (typeof updateVideoLayout === 'function') updateVideoLayout();
+}
+
+function setupPeerConnection(targetPeer = 'partner') {
+  const pc = new RTCPeerConnection(ICE_SERVERS);
+  if (!state.peerConnections) state.peerConnections = {};
+  state.peerConnections[targetPeer] = pc;
+  if (targetPeer === 'partner' || !state.peerConnection) {
+    state.peerConnection = pc;
+  }
 
   // Add local media tracks
   if (state.localStream) {
     state.localStream.getTracks().forEach(track => {
-      state.peerConnection.addTrack(track, state.localStream);
+      pc.addTrack(track, state.localStream);
     });
   }
 
   // Handle incoming remote stream
-  state.peerConnection.ontrack = (event) => {
+  pc.ontrack = (event) => {
     const track = event.track;
     if (track.kind === 'video' && (track.label?.toLowerCase().includes('screen') || track.label?.toLowerCase().includes('window') || state.partnerScreenSharing)) {
       if (elements.screenShareVideo && elements.screenShareVideo.srcObject !== event.streams[0]) {
@@ -816,25 +851,26 @@ function setupPeerConnection() {
         showToast('Screen share connected! 🖥️', 'success');
       }
     } else {
-      if (elements.remoteVideo.srcObject !== event.streams[0]) {
-        elements.remoteVideo.srcObject = event.streams[0];
-        elements.remoteVideo.play().catch(e => console.debug(e));
-        if (elements.remoteWaitingOverlay) elements.remoteWaitingOverlay.style.display = 'none';
-        showToast('Partner connected to video stream! 📹❤️', 'success');
-      }
+      if (!state.remoteStreams) state.remoteStreams = {};
+      state.remoteStreams[targetPeer] = event.streams[0];
+      renderRemoteParticipants();
+      showToast(`${targetPeer} connected to video stream! 📹❤️`, 'success');
     }
   };
 
   // ICE Candidate handling
-  state.peerConnection.onicecandidate = (event) => {
+  pc.onicecandidate = (event) => {
     if (event.candidate) {
       sendSignaling({
         type: 'ice-candidate',
+        target: targetPeer,
         candidate: event.candidate,
         sender: state.userName
       });
     }
   };
+
+  return pc;
 }
 
 function sendSignaling(payload) {
@@ -1037,9 +1073,17 @@ function cleanupMedia() {
     state.localStream = null;
   }
   if (state.peerConnection) {
-    state.peerConnection.close();
+    try { state.peerConnection.close(); } catch(e) {}
     state.peerConnection = null;
   }
+  Object.values(state.peerConnections || {}).forEach(pc => {
+    try { pc.close(); } catch(e) {}
+  });
+  state.peerConnections = {};
+  state.remoteStreams = {};
+  state.primaryPeer = null;
+  document.querySelectorAll('.extra-remote-pane').forEach(el => el.remove());
+
   elements.videoUi?.classList.add('hidden');
   if (elements.remoteVideo) elements.remoteVideo.srcObject = null;
   if (elements.screenShareVideo) elements.screenShareVideo.srcObject = null;
@@ -1049,22 +1093,93 @@ function cleanupMedia() {
   state.isCalling = false;
   state.isScreenSharing = false;
   state.enlargedPane = null;
+  state.isMuted = false;
+  state.isCamOff = false;
+  updateControlEmojis();
   updateVideoLayout();
   if (elements.toggleScreenBtn) elements.toggleScreenBtn.classList.remove('active');
 }
 
-function toggleMute() {
-  if (!state.localStream) return;
+async function toggleMute() {
+  if (!state.localStream && state.isMuted) return;
   state.isMuted = !state.isMuted;
-  state.localStream.getAudioTracks().forEach(t => t.enabled = !state.isMuted);
+
+  if (state.isMuted) {
+    if (state.localStream) {
+      state.localStream.getAudioTracks().forEach(t => {
+        t.enabled = false;
+        t.stop();
+        state.localStream.removeTrack(t);
+      });
+    }
+  } else {
+    try {
+      const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const newTrack = micStream.getAudioTracks()[0];
+      if (state.localStream) {
+        state.localStream.addTrack(newTrack);
+      } else {
+        state.localStream = micStream;
+      }
+      const pcs = Object.values(state.peerConnections || {});
+      if (state.peerConnection && !pcs.includes(state.peerConnection)) pcs.push(state.peerConnection);
+      for (const pc of pcs) {
+        const sender = pc.getSenders().find(s => s.track?.kind === 'audio');
+        if (sender) {
+          await sender.replaceTrack(newTrack);
+        } else {
+          pc.addTrack(newTrack, state.localStream);
+        }
+      }
+    } catch (err) {
+      showToast('Could not access microphone', 'error');
+      state.isMuted = true;
+    }
+  }
+
   updateControlEmojis();
   showToast(state.isMuted ? 'Microphone muted' : 'Microphone unmuted');
 }
 
-function toggleCamera() {
-  if (!state.localStream) return;
+async function toggleCamera() {
+  if (!state.localStream && state.isCamOff) return;
   state.isCamOff = !state.isCamOff;
-  state.localStream.getVideoTracks().forEach(t => t.enabled = !state.isCamOff);
+
+  if (state.isCamOff) {
+    if (state.localStream) {
+      state.localStream.getVideoTracks().forEach(t => {
+        t.enabled = false;
+        t.stop();
+        state.localStream.removeTrack(t);
+      });
+    }
+  } else {
+    try {
+      const camStream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } } });
+      const newTrack = camStream.getVideoTracks()[0];
+      if (state.localStream) {
+        state.localStream.addTrack(newTrack);
+      } else {
+        state.localStream = camStream;
+      }
+      if (elements.localVideo) elements.localVideo.srcObject = state.localStream;
+
+      const pcs = Object.values(state.peerConnections || {});
+      if (state.peerConnection && !pcs.includes(state.peerConnection)) pcs.push(state.peerConnection);
+      for (const pc of pcs) {
+        const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+        if (sender) {
+          await sender.replaceTrack(newTrack);
+        } else {
+          pc.addTrack(newTrack, state.localStream);
+        }
+      }
+    } catch (err) {
+      showToast('Could not access camera', 'error');
+      state.isCamOff = true;
+    }
+  }
+
   updateControlEmojis();
   if (elements.localCamOff) {
     elements.localCamOff.classList.toggle('hidden', !state.isCamOff);
