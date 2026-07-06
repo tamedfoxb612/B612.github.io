@@ -16,7 +16,6 @@
 const MANUAL_SUPABASE_URL = ""; // e.g., "https://abcdefghijklmnop.supabase.co"
 const MANUAL_SUPABASE_ANON_KEY = ""; // e.g., "eyJhbGciOi..."
 const MANUAL_VAPID_PUBLIC_KEY = ""; // e.g., "BEl62iUYgUivxIkv69yViEuiBIa-..."
-const DEFAULT_SUPABASE_URL = "";
 
 // State Management
 const state = {
@@ -146,25 +145,7 @@ function showToast(message, type = 'info', duration = 4000) {
   }
 }
 
-function playBeepSound() {
-  try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-    osc.frequency.exponentialRampToValueAtTime(880, ctx.currentTime + 0.15); // A5
-    gain.gain.setValueAtTime(0.15, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.35);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start();
-    osc.stop(ctx.currentTime + 0.35);
-  } catch (e) { /* ignore audio blocked */ }
-}
-
 function showNativeNotification(title, body, force = false) {
-  playBeepSound();
   if (!force && !document.hidden) return;
   if (!('Notification' in window)) return;
   if (Notification.permission === 'granted') {
@@ -174,14 +155,14 @@ function showNativeNotification(title, body, force = false) {
       badge: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y=".9em" font-size="90">❤️</text></svg>',
       vibrate: [200, 100, 200]
     };
-    try {
-      new Notification(title || 'B612 ❤️', options);
-    } catch (e) {
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.ready.then(reg => {
-          reg.showNotification(title || 'B612 ❤️', options).catch(() => {});
-        }).catch(() => {});
-      }
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(reg => {
+        reg.showNotification(title || 'B612 ❤️', options).catch(() => {});
+      }).catch(() => {
+        try { new Notification(title || 'B612 ❤️', options); } catch (e) {}
+      });
+    } else {
+      try { new Notification(title || 'B612 ❤️', options); } catch (e) {}
     }
   }
 }
@@ -192,7 +173,7 @@ function showNativeNotification(title, body, force = false) {
 async function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     try {
-      const reg = await navigator.serviceWorker.register('./sw.js?v=gradient2');
+      const reg = await navigator.serviceWorker.register('./sw.js?v=sketch4');
       await reg.update();
       console.log('Service Worker registered successfully:', reg.scope);
     } catch (err) {
@@ -310,11 +291,7 @@ function setupEventListeners() {
   // Push Notifications Pre-Room Modal buttons
   elements.enableNotifsEnterBtn?.addEventListener('click', async () => {
     elements.notifUrgeModal?.classList.add('hidden');
-    try {
-      await handleEnablePush(false);
-    } catch (err) {
-      console.warn('Push setup note:', err);
-    }
+    await handleEnablePush(false);
     completeRoomJoin();
   });
   elements.skipNotifsEnterBtn?.addEventListener('click', () => {
@@ -506,48 +483,14 @@ async function completeRoomJoin() {
   loadPastMessages();
 }
 
-function cleanupRealtimeConnections() {
-  if (state.channel) {
-    state.channel.unsubscribe();
-    state.channel = null;
-  }
-  if (window.demoBroadcast) {
-    try { window.demoBroadcast.close(); } catch (e) {}
-    window.demoBroadcast = null;
-  }
-  if (state.pollInterval) {
-    clearInterval(state.pollInterval);
-    state.pollInterval = null;
-  }
-  if (state.storageListener) {
-    window.removeEventListener('storage', state.storageListener);
-    state.storageListener = null;
-  }
-}
-
-const seenEventIds = new Set();
-function processIncomingRelayEvent(data) {
-  if (!data) return;
-  const evtId = data.id || `${data.timestamp || ''}_${data.type}_${data.sender}_${data.content || data.theme || data.enabled || ''}`;
-  if (seenEventIds.has(evtId)) return;
-  seenEventIds.add(evtId);
-  if (seenEventIds.size > 500) {
-    const first = seenEventIds.values().next().value;
-    seenEventIds.delete(first);
-  }
-  if (data.sender === state.userName) return;
-  if (data.signaling || ['offer', 'answer', 'ice-candidate', 'call-invite', 'call-accept', 'call-decline', 'theme-change', 'cam-toggle', 'screen-share-toggle', 'toggle-circle-speech', 'end-call'].includes(data.type)) {
-    handleSignalingMessage(data);
-  } else {
-    handleIncomingPayload(data);
-  }
-}
-
 /**
  * Leave Room Logic
  */
 function handleLeaveRoom() {
-  cleanupRealtimeConnections();
+  if (state.channel) {
+    state.channel.unsubscribe();
+    state.channel = null;
+  }
   endVideoCall();
   
   elements.dashboardView.classList.add('hidden');
@@ -563,35 +506,10 @@ function handleLeaveRoom() {
  * Setup Supabase Realtime Channel
  */
 function setupRealtimeSubscription() {
-  cleanupRealtimeConnections();
-
   if (!state.supabase) {
-    // 1. BroadcastChannel for instant local tabs
-    window.demoBroadcast = new BroadcastChannel(`b612_${state.roomCode}`);
-    window.demoBroadcast.onmessage = (event) => processIncomingRelayEvent(event.data);
-
-    // 2. LocalStorage sync for cross-frame storage events
-    state.storageListener = (e) => {
-      if (e.key === `b612_relay_${state.roomCode}` && e.newValue) {
-        try { processIncomingRelayEvent(JSON.parse(e.newValue)); } catch (err) {}
-      }
-    };
-    window.addEventListener('storage', state.storageListener);
-
-    // 3. HTTP Server Relay for cross-device / cross-browser connection
-    state.lastPollId = 0;
-    state.pollInterval = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/relay?room=${encodeURIComponent(state.roomCode)}&since=${state.lastPollId}`);
-        if (res.ok) {
-          const events = await res.json();
-          events.forEach(evt => {
-            if (evt.id > state.lastPollId) state.lastPollId = evt.id;
-            processIncomingRelayEvent(evt);
-          });
-        }
-      } catch (err) {}
-    }, 1000);
+    // Fallback broadcast via broadcastChannel or memory for instant UI demo
+    window.demoBroadcast = window.demoBroadcast || new BroadcastChannel(`b612_${state.roomCode}`);
+    window.demoBroadcast.onmessage = (event) => handleIncomingPayload(event.data);
     return;
   }
 
@@ -622,10 +540,6 @@ function setupRealtimeSubscription() {
  */
 function handleIncomingPayload(data) {
   if (!data) return;
-  if (data.signaling || ['offer', 'answer', 'ice-candidate', 'call-invite', 'call-accept', 'call-decline', 'theme-change', 'cam-toggle', 'screen-share-toggle', 'toggle-circle-speech', 'end-call'].includes(data.type)) {
-    handleSignalingMessage(data);
-    return;
-  }
   const { type, content, sender, timestamp } = data;
   if (sender === state.userName) return; // ignore self broadcast echoes
   
@@ -679,8 +593,16 @@ async function handleSendHeart() {
   // Add to local UI
   appendFeedItem('heart', payload.content, 'You', new Date());
 
-  // Broadcast over Supabase Realtime & multi-transport relay
-  relaySend(payload);
+  // Broadcast over Supabase Realtime
+  if (state.channel) {
+    state.channel.send({
+      type: 'broadcast',
+      event: 'pager_event',
+      payload: payload
+    });
+  } else if (window.demoBroadcast) {
+    window.demoBroadcast.postMessage(payload);
+  }
 
   // Persist to Supabase database
   if (state.supabase && state.supabase.supabaseUrl !== DEFAULT_SUPABASE_URL) {
@@ -720,7 +642,15 @@ async function sendChatMessageText(text) {
 
   appendFeedItem('message', text, 'You', new Date());
 
-  relaySend(payload);
+  if (state.channel) {
+    state.channel.send({
+      type: 'broadcast',
+      event: 'pager_event',
+      payload: payload
+    });
+  } else if (window.demoBroadcast) {
+    window.demoBroadcast.postMessage(payload);
+  }
 
   if (state.supabase && state.supabase.supabaseUrl !== DEFAULT_SUPABASE_URL) {
     try {
@@ -1009,29 +939,16 @@ function setupPeerConnection(targetPeer = 'partner') {
   return pc;
 }
 
-function relaySend(payload) {
+function sendSignaling(payload) {
   if (state.channel) {
     state.channel.send({
       type: 'broadcast',
-      event: payload.signaling ? 'webrtc_signaling' : 'pager_event',
+      event: 'webrtc_signaling',
       payload: payload
     });
+  } else if (window.demoBroadcast) {
+    window.demoBroadcast.postMessage({ signaling: true, ...payload });
   }
-  if (window.demoBroadcast) {
-    window.demoBroadcast.postMessage(payload);
-  }
-  try {
-    localStorage.setItem(`b612_relay_${state.roomCode}`, JSON.stringify({ id: Date.now() + Math.random(), ...payload }));
-  } catch (e) {}
-  fetch(`/api/relay?room=${encodeURIComponent(state.roomCode)}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  }).catch(() => {});
-}
-
-function sendSignaling(payload) {
-  relaySend({ signaling: true, ...payload });
 }
 
 function toggleCircleSpeech(broadcast = true) {
@@ -1431,9 +1348,6 @@ async function triggerRemotePushNotification(title, body) {
 // VIDEO CALL INVITATION & PRESENCE
 // =========================================================================
 function sendCallInvite() {
-  sendSignaling({ type: 'call-invite', sender: state.userName });
-  showToast('Sent live video invite modal to partner!', 'success');
-  triggerRemotePushNotification('📹 Live Video Invite!', `${state.userName} invited you to a live video call! Click to join.`);
   initiateVideoCall();
 }
 
