@@ -67,7 +67,7 @@
         <div class="room-top-actions">
           <!-- Button at topright to notify video call with accept or decline -->
           <button id="notify-call-btn" class="btn btn-call-invite" title="Enter Video Call Room">
-            <span>Enter Video Call 📹</span>
+            <span class="btn-text">Enter Video Call </span><span class="btn-icon">📹</span>
           </button>
           <div class="preset-dropdown-wrapper">
             <button id="room-theme-btn" class="btn btn-icon-small" title="Change Page Theme">🎨</button>
@@ -80,9 +80,7 @@
               <button class="theme-item" data-theme="matcha-strawberry">🍵 / 🍓 Matcha or Strawberry (50% Chance)</button>
             </div>
           </div>
-          <button id="room-console-btn" class="btn btn-icon-small" title="System Console Logs">📋</button>
           <button id="clear-room-messages-btn" class="btn btn-icon-small" title="Clear All Room Messages">🗑️</button>
-          <button id="enable-push-dash-btn" class="btn btn-icon-small" title="Enable Push Alerts">🔔</button>
         </div>
       </header>
 
@@ -128,7 +126,7 @@
           <!-- Leave call button on top left -->
           <div class="top-left-controls">
             <button id="end-call-btn" class="btn btn-end-call-top">
-              <span>🚪 Leave Call</span>
+              <span class="btn-icon">🚪</span> <span class="btn-text">Leave Call</span>
             </button>
           </div>
 
@@ -137,7 +135,7 @@
             <!-- Theme & Camera Off Color dropdown -->
             <div class="preset-dropdown-wrapper">
               <button id="theme-color-btn" class="btn btn-top-action" title="Change Theme & Camera Off Color">
-                <span>🎨 Theme: Slate</span>
+                <span class="btn-icon">🎨</span> <span class="btn-text">Theme: Slate</span>
               </button>
               <div id="theme-menu" class="presets-menu hidden">
                 <button class="theme-item" data-theme="slate">🤎 Warm Slate</button>
@@ -149,24 +147,14 @@
               </div>
             </div>
 
-            <!-- Button in top right to toggle transparent fullscreen chat or normal floating chat -->
-            <button id="toggle-chat-bg-btn" class="btn btn-top-action" title="Toggle Fullscreen Transparent Mode">
-              <span>🖥️ Fullscreen Chat</span>
-            </button>
-
             <!-- Button in top right to toggle circle head speech bubbles -->
             <button id="toggle-circle-speech-btn" class="btn btn-top-action active" title="Toggle Circle Head Speech Bubbles">
-              <span>💭 Circle Speech: On</span>
+              <span class="btn-icon">💭</span> <span class="btn-text">Circle Speech: On</span>
             </button>
 
             <!-- Button in top right to toggle text to speech for messages -->
             <button id="toggle-tts-btn" class="btn btn-top-action" title="Toggle Message TTS">
-              <span>🔊 TTS: Off</span>
-            </button>
-
-            <!-- Console Log Button -->
-            <button id="video-console-btn" class="btn btn-top-action" title="View System Console Messages">
-              <span>📋 Console <span id="console-badge" class="console-badge hidden">0</span></span>
+              <span class="btn-icon">🔊</span> <span class="btn-text">TTS: Off</span>
             </button>
           </div>
         </header>
@@ -258,24 +246,8 @@
         </div>
       </div>
     </div>
-
-    <!-- Console Log Modal -->
-    <div id="console-log-modal" class="modal-overlay hidden">
-      <div class="modal-card console-modal-card">
-        <div class="console-modal-header">
-          <h3>📋 System Console Messages</h3>
-          <button id="close-console-btn" class="btn-close-modal">✕</button>
-        </div>
-        <div id="console-log-list" class="console-log-list">
-          <p class="console-empty">No console messages yet.</p>
-        </div>
-        <div class="console-modal-footer">
-          <button id="clear-console-btn" class="btn btn-secondary" style="width: 100%;">Clear Console</button>
-        </div>
-      </div>
-    </div>
   </div>
 
-  <script src="./app.js?v=sketch5"></script>
+  <script src="./app.js?v=sketch6"></script>
 </body>
 </html>

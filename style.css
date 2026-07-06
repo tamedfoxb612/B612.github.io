@@ -1906,3 +1906,24 @@ body.theme-strawberry {
   border-radius: 9999px;
   margin-left: 4px;
 }
+
+/* Responsive Mobile Top Bar & Multi-Person Layouts */
+@media (max-width: 680px) {
+  .room-top-actions .btn-text,
+  .video-top-bar .btn-text {
+    display: none !important;
+  }
+  .room-top-actions .btn,
+  .video-top-bar .btn {
+    padding: 8px 10px;
+    min-width: 38px;
+    justify-content: center;
+  }
+  .room-header, .video-top-bar {
+    padding: 10px 14px;
+  }
+  #current-room-code {
+    font-size: 1.1rem;
+  }
+}
+

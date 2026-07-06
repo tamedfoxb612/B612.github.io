@@ -13,9 +13,9 @@
 // 5. Under "Project API keys", copy your "anon / public" key into MANUAL_SUPABASE_ANON_KEY below.
 // Note: If left empty (""), the app runs smoothly in local/broadcast P2P mode!
 // =========================================================================
-const MANUAL_SUPABASE_URL = "https://fwwvksyewbdfdyegzgfz.supabase.co"
-const MANUAL_SUPABASE_ANON_KEY = "sb_publishable_IED8Q0cnxphV6LWsaOV9cg_qChpAX8H"
-const MANUAL_VAPID_PUBLIC_KEY = "BJOSxJvBN0cbRzFRFEv-WCnPKKCjV9i1OUc4kzTp4lDPklRzgxCDSHmyCT7mtx8vV9qMozjd47SR77NHlk8fDls"
+const MANUAL_SUPABASE_URL = ""; // e.g., "https://abcdefghijklmnop.supabase.co"
+const MANUAL_SUPABASE_ANON_KEY = ""; // e.g., "eyJhbGciOi..."
+const MANUAL_VAPID_PUBLIC_KEY = ""; // e.g., "BEl62iUYgUivxIkv69yViEuiBIa-..."
 
 // State Management
 const state = {
@@ -270,23 +270,9 @@ function setupEventListeners() {
     });
   });
 
-  const openConsole = () => {
-    elements.consoleLogModal?.classList.remove('hidden');
-    if (elements.consoleBadge) elements.consoleBadge.classList.add('hidden');
-  };
-  elements.roomConsoleBtn?.addEventListener('click', openConsole);
-  elements.videoConsoleBtn?.addEventListener('click', openConsole);
-  elements.closeConsoleBtn?.addEventListener('click', () => elements.consoleLogModal?.classList.add('hidden'));
-  elements.clearConsoleBtn?.addEventListener('click', () => {
-    state.consoleLogs = [];
-    renderConsoleLogs();
-    showToast('System console cleared.');
-  });
-
   elements.clearRoomMessagesBtn?.addEventListener('click', clearRoomMessages);
   elements.clearVideoMessagesBtn?.addEventListener('click', clearVideoMessages);
   
-  elements.toggleChatBgBtn?.addEventListener('click', toggleImmersiveFullscreen);
   elements.toggleCircleSpeechBtn?.addEventListener('click', () => toggleCircleSpeech(true));
   elements.exitFullscreenBtn?.addEventListener('click', exitImmersiveFullscreen);
   elements.toggleTtsBtn?.addEventListener('click', toggleTts);
@@ -300,6 +286,26 @@ function setupEventListeners() {
   setupPaneResizer(elements.localVideoContainer);
   setupManualResizer();
   window.addEventListener('resize', updateSpeechBubblePositions);
+
+  // Double tap / double click on video wrapper toggles Fullscreen
+  let lastTapTime = 0;
+  if (elements.videoPanesWrapper) {
+    elements.videoPanesWrapper.addEventListener('dblclick', (e) => {
+      if (e.target?.closest('button') || e.target?.closest('input') || e.target?.closest('.video-chat-form')) return;
+      if (document.fullscreenElement) exitImmersiveFullscreen(); else toggleImmersiveFullscreen();
+    });
+    elements.videoPanesWrapper.addEventListener('touchend', (e) => {
+      if (e.target?.closest('button') || e.target?.closest('input') || e.target?.closest('.video-chat-form')) return;
+      const now = Date.now();
+      if (now - lastTapTime < 350 && now - lastTapTime > 40) {
+        e.preventDefault();
+        if (document.fullscreenElement) exitImmersiveFullscreen(); else toggleImmersiveFullscreen();
+        lastTapTime = 0;
+      } else {
+        lastTapTime = now;
+      }
+    });
+  }
 
   document.addEventListener('fullscreenchange', () => {
     if (!document.fullscreenElement && state.isImmersiveMode) {
@@ -468,15 +474,6 @@ async function completeRoomJoin() {
     elements.statusBadge.textContent = 'Online';
   }
 
-  // Request Camera & Audio right from the start
-  try {
-    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-      await getOrAcquireLocalStream();
-    }
-  } catch (mediaErr) {
-    console.warn('Camera/audio permission prompt note:', mediaErr);
-  }
-
   // Connect to Realtime Channel
   setupRealtimeSubscription();
 
@@ -559,7 +556,7 @@ function handleIncomingPayload(data) {
  * Load past messages from Supabase 'messages' table
  */
 async function loadPastMessages() {
-  if (!state.supabase || state.supabase.supabaseUrl === MANUAL_SUPABASE_URL) return;
+  if (!state.supabase || state.supabase.supabaseUrl === DEFAULT_SUPABASE_URL) return;
   try {
     const { data, error } = await state.supabase
       .from('messages')
@@ -606,7 +603,7 @@ async function handleSendHeart() {
   }
 
   // Persist to Supabase database
-  if (state.supabase && state.supabase.supabaseUrl !== MANUAL_SUPABASE_URL) {
+  if (state.supabase && state.supabase.supabaseUrl !== DEFAULT_SUPABASE_URL) {
     try {
       await state.supabase.from('messages').insert([{
         room_code: state.roomCode,
@@ -653,9 +650,9 @@ async function sendChatMessageText(text) {
     window.demoBroadcast.postMessage(payload);
   }
 
-  if (state.supabase && state.supabase.supabaseUrl !== MANUAL_SUPABASE_URL) {
+  if (state.supabase && state.supabase.supabaseUrl !== DEFAULT_SUPABASE_URL) {
     try {
-      await state.supabase.from('messages').upsert([{
+      await state.supabase.from('messages').insert([{
         room_code: state.roomCode,
         type: 'message',
         content: `${state.userName}: ${text}`
@@ -726,27 +723,27 @@ function appendFeedItem(type, content, sender, timeObj, animate = true) {
   // Text To Speech (TTS) for messages using distinct voices without prefix
   if (state.ttsEnabled && type === 'message' && ('speechSynthesis' in window)) {
     try {
-      const cleanText = content.replace(/^.*?: /, '');
+      // Clean off any prefixes or tags completely
+      const cleanText = content
+        .replace(/^(You say|You|Partner says|Partner|.*? says|.*?:)\s*:?\s*/i, '')
+        .replace(/^(You say|this one says)\s*/i, '')
+        .trim() || content;
       const utterance = new SpeechSynthesisUtterance(cleanText);
       const voices = window.speechSynthesis.getVoices() || [];
       if (voices.length > 0) {
-        const langVoices = voices.filter(v => v.lang.startsWith(navigator.language?.slice(0, 2) || 'en'));
-        const pool = langVoices.length >= 2 ? langVoices : voices;
         if (isSelf) {
-          utterance.voice = pool[0];
-          utterance.pitch = 1.08;
+          utterance.voice = voices[0];
+          utterance.pitch = 1.12;
+          utterance.rate = 1.0;
         } else {
-          // Select a distinctly different voice for partner messages
-          const diffVoice = pool.find(v => v !== pool[0]) || voices.find(v => v !== pool[0]);
-          if (diffVoice) {
-            utterance.voice = diffVoice;
-            utterance.pitch = 0.92;
-          } else {
-            utterance.pitch = 0.82;
-          }
+          // Select a distinctly different voice (different name or gender) for partner messages
+          const diffVoice = voices.find(v => v.name !== voices[0].name && (v.lang.startsWith('en') || v.lang.startsWith(navigator.language?.slice(0, 2)))) || voices[voices.length - 1];
+          if (diffVoice) utterance.voice = diffVoice;
+          utterance.pitch = 0.86;
+          utterance.rate = 0.95;
         }
       } else {
-        utterance.pitch = isSelf ? 1.08 : 0.82;
+        utterance.pitch = isSelf ? 1.12 : 0.86;
       }
       window.speechSynthesis.speak(utterance);
     } catch (err) {
