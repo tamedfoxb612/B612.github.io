@@ -506,14 +506,48 @@ async function completeRoomJoin() {
   loadPastMessages();
 }
 
-/**
- * Leave Room Logic
- */
-function handleLeaveRoom() {
+function cleanupRealtimeConnections() {
   if (state.channel) {
     state.channel.unsubscribe();
     state.channel = null;
   }
+  if (window.demoBroadcast) {
+    try { window.demoBroadcast.close(); } catch (e) {}
+    window.demoBroadcast = null;
+  }
+  if (state.pollInterval) {
+    clearInterval(state.pollInterval);
+    state.pollInterval = null;
+  }
+  if (state.storageListener) {
+    window.removeEventListener('storage', state.storageListener);
+    state.storageListener = null;
+  }
+}
+
+const seenEventIds = new Set();
+function processIncomingRelayEvent(data) {
+  if (!data) return;
+  const evtId = data.id || `${data.timestamp || ''}_${data.type}_${data.sender}_${data.content || data.theme || data.enabled || ''}`;
+  if (seenEventIds.has(evtId)) return;
+  seenEventIds.add(evtId);
+  if (seenEventIds.size > 500) {
+    const first = seenEventIds.values().next().value;
+    seenEventIds.delete(first);
+  }
+  if (data.sender === state.userName) return;
+  if (data.signaling || ['offer', 'answer', 'ice-candidate', 'call-invite', 'call-accept', 'call-decline', 'theme-change', 'cam-toggle', 'screen-share-toggle', 'toggle-circle-speech', 'end-call'].includes(data.type)) {
+    handleSignalingMessage(data);
+  } else {
+    handleIncomingPayload(data);
+  }
+}
+
+/**
+ * Leave Room Logic
+ */
+function handleLeaveRoom() {
+  cleanupRealtimeConnections();
   endVideoCall();
   
   elements.dashboardView.classList.add('hidden');
@@ -529,18 +563,35 @@ function handleLeaveRoom() {
  * Setup Supabase Realtime Channel
  */
 function setupRealtimeSubscription() {
+  cleanupRealtimeConnections();
+
   if (!state.supabase) {
-    // Fallback broadcast via broadcastChannel or memory for instant UI demo
-    window.demoBroadcast = window.demoBroadcast || new BroadcastChannel(`b612_${state.roomCode}`);
-    window.demoBroadcast.onmessage = (event) => {
-      const data = event.data;
-      if (!data) return;
-      if (data.signaling || ['offer', 'answer', 'ice-candidate', 'call-invite', 'call-accept', 'call-decline', 'theme-change', 'cam-toggle', 'screen-share-toggle', 'toggle-circle-speech', 'end-call'].includes(data.type)) {
-        handleSignalingMessage(data);
-      } else {
-        handleIncomingPayload(data);
+    // 1. BroadcastChannel for instant local tabs
+    window.demoBroadcast = new BroadcastChannel(`b612_${state.roomCode}`);
+    window.demoBroadcast.onmessage = (event) => processIncomingRelayEvent(event.data);
+
+    // 2. LocalStorage sync for cross-frame storage events
+    state.storageListener = (e) => {
+      if (e.key === `b612_relay_${state.roomCode}` && e.newValue) {
+        try { processIncomingRelayEvent(JSON.parse(e.newValue)); } catch (err) {}
       }
     };
+    window.addEventListener('storage', state.storageListener);
+
+    // 3. HTTP Server Relay for cross-device / cross-browser connection
+    state.lastPollId = 0;
+    state.pollInterval = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/relay?room=${encodeURIComponent(state.roomCode)}&since=${state.lastPollId}`);
+        if (res.ok) {
+          const events = await res.json();
+          events.forEach(evt => {
+            if (evt.id > state.lastPollId) state.lastPollId = evt.id;
+            processIncomingRelayEvent(evt);
+          });
+        }
+      } catch (err) {}
+    }, 1000);
     return;
   }
 
@@ -628,16 +679,8 @@ async function handleSendHeart() {
   // Add to local UI
   appendFeedItem('heart', payload.content, 'You', new Date());
 
-  // Broadcast over Supabase Realtime
-  if (state.channel) {
-    state.channel.send({
-      type: 'broadcast',
-      event: 'pager_event',
-      payload: payload
-    });
-  } else if (window.demoBroadcast) {
-    window.demoBroadcast.postMessage(payload);
-  }
+  // Broadcast over Supabase Realtime & multi-transport relay
+  relaySend(payload);
 
   // Persist to Supabase database
   if (state.supabase && state.supabase.supabaseUrl !== DEFAULT_SUPABASE_URL) {
@@ -677,15 +720,7 @@ async function sendChatMessageText(text) {
 
   appendFeedItem('message', text, 'You', new Date());
 
-  if (state.channel) {
-    state.channel.send({
-      type: 'broadcast',
-      event: 'pager_event',
-      payload: payload
-    });
-  } else if (window.demoBroadcast) {
-    window.demoBroadcast.postMessage(payload);
-  }
+  relaySend(payload);
 
   if (state.supabase && state.supabase.supabaseUrl !== DEFAULT_SUPABASE_URL) {
     try {
@@ -974,16 +1009,29 @@ function setupPeerConnection(targetPeer = 'partner') {
   return pc;
 }
 
-function sendSignaling(payload) {
+function relaySend(payload) {
   if (state.channel) {
     state.channel.send({
       type: 'broadcast',
-      event: 'webrtc_signaling',
+      event: payload.signaling ? 'webrtc_signaling' : 'pager_event',
       payload: payload
     });
-  } else if (window.demoBroadcast) {
-    window.demoBroadcast.postMessage({ signaling: true, ...payload });
   }
+  if (window.demoBroadcast) {
+    window.demoBroadcast.postMessage(payload);
+  }
+  try {
+    localStorage.setItem(`b612_relay_${state.roomCode}`, JSON.stringify({ id: Date.now() + Math.random(), ...payload }));
+  } catch (e) {}
+  fetch(`/api/relay?room=${encodeURIComponent(state.roomCode)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).catch(() => {});
+}
+
+function sendSignaling(payload) {
+  relaySend({ signaling: true, ...payload });
 }
 
 function toggleCircleSpeech(broadcast = true) {
