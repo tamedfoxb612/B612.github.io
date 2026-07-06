@@ -3,22 +3,32 @@
  * Handles background push notifications and asset caching for offline PWA capabilities.
  */
 
-const CACHE_NAME = 'b612-sketch-v8';
+const CACHE_NAME = 'b612-sketch-gradient-v2';
 const ASSETS_TO_CACHE = [
   './',
   './index.html',
-  './style.css',
-  './app.js',
+  './style.css?v=gradient2',
+  './app.js?v=gradient2',
   './manifest.json',
   'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'
 ];
 
-// Install Event - Cache assets for offline and instant slow 4G load
+// Install Event - Cache assets for offline and instant slow 4G load (using reload to bypass browser disk cache)
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
+    caches.open(CACHE_NAME).then(async (cache) => {
       console.log('Service Worker: Caching App Shell for instant load and offline capability');
-      return cache.addAll(ASSETS_TO_CACHE);
+      for (const asset of ASSETS_TO_CACHE) {
+        try {
+          const req = new Request(asset, { cache: 'reload' });
+          const res = await fetch(req);
+          if (res && (res.status === 200 || res.status === 0)) {
+            await cache.put(asset, res);
+          }
+        } catch (err) {
+          console.warn('Failed to cache asset on install:', asset, err);
+        }
+      }
     }).then(() => self.skipWaiting())
   );
 });
@@ -39,7 +49,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch Event - Cache-First Strategy with Network Fallback & Supabase Bypass
+// Fetch Event - Stale-While-Revalidate Strategy with Supabase Bypass
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
 
@@ -50,13 +60,11 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Standard Cache-First Strategy: Return from cache immediately for instant load on slow 4G or airplane mode
+  // Stale-While-Revalidate Strategy: Return cached response immediately for instant load on slow 4G / airplane mode,
+  // while updating the cache in background when connected so code updates appear reliably.
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-      return fetch(event.request)
+    caches.match(event.request, { ignoreSearch: true }).then((cachedResponse) => {
+      const fetchPromise = fetch(event.request)
         .then((networkResponse) => {
           if (networkResponse && (networkResponse.status === 200 || networkResponse.status === 0)) {
             const responseToCache = networkResponse.clone();
@@ -67,11 +75,21 @@ self.addEventListener('fetch', (event) => {
           return networkResponse;
         })
         .catch(() => {
-          // Offline fallback for HTML navigation requests
-          if (event.request.mode === 'navigate') {
-            return caches.match('./index.html');
-          }
+          // Offline network error - handled below if no cache
         });
+
+      if (cachedResponse) {
+        return cachedResponse;
+      }
+
+      return fetchPromise.then((networkResponse) => {
+        if (networkResponse) return networkResponse;
+        if (event.request.mode === 'navigate') {
+          return caches.match('./index.html', { ignoreSearch: true }).then((cachedIndex) => {
+            return cachedIndex || caches.match('./', { ignoreSearch: true });
+          });
+        }
+      });
     })
   );
 });

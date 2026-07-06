@@ -1534,8 +1534,8 @@ body.theme-glass {
 body.theme-purple {
   --bg-main: #2d1b4e;
   --bg-subtle: #3d266b;
-  --bg-gradient-top: #341a54; /* deep violet purple */
-  --bg-gradient-bottom: #573312; /* warm golden amber dusk */
+  --bg-gradient-top: #3b0764; /* rich violet purple */
+  --bg-gradient-bottom: #854d0e; /* warm golden amber yellow */
   --card-bg: rgba(76, 48, 133, 0.95);
   --card-border: #6d44b8;
   --border-color: #6d44b8;
@@ -1552,8 +1552,8 @@ body.theme-purple {
 body.theme-yellow {
   --bg-main: #fefce8;
   --bg-subtle: #fef9c3;
-  --bg-gradient-top: #fef9c3; /* soft warm yellow */
-  --bg-gradient-bottom: #e9d5ff; /* soft lavender purple */
+  --bg-gradient-top: #fef08a; /* vibrant warm yellow */
+  --bg-gradient-bottom: #d8b4fe; /* soft lavender purple */
   --card-bg: rgba(255, 255, 255, 0.95);
   --card-border: #fde047;
   --border-color: #fde047;
@@ -1570,8 +1570,8 @@ body.theme-yellow {
 body.theme-matcha {
   --bg-main: #f0fdf4;
   --bg-subtle: #dcfce7;
-  --bg-gradient-top: #dcfce7; /* matcha green */
-  --bg-gradient-bottom: #fce7f3; /* strawberry pink */
+  --bg-gradient-top: #bbf7d0; /* fresh matcha green */
+  --bg-gradient-bottom: #fbcfe8; /* sweet strawberry pink */
   --card-bg: rgba(255, 255, 255, 0.95);
   --card-border: #bbf7d0;
   --border-color: #bbf7d0;
@@ -1588,8 +1588,8 @@ body.theme-matcha {
 body.theme-strawberry {
   --bg-main: #fdf2f8;
   --bg-subtle: #fce7f3;
-  --bg-gradient-top: #fce7f3; /* strawberry pink */
-  --bg-gradient-bottom: #dcfce7; /* matcha green */
+  --bg-gradient-top: #fbcfe8; /* sweet strawberry pink */
+  --bg-gradient-bottom: #bbf7d0; /* fresh matcha green */
   --card-bg: rgba(255, 255, 255, 0.95);
   --card-border: #fbcfe8;
   --border-color: #fbcfe8;

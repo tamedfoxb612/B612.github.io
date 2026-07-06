@@ -173,7 +173,7 @@ function showNativeNotification(title, body, force = false) {
 async function registerServiceWorker() {
   if ('serviceWorker' in navigator) {
     try {
-      const reg = await navigator.serviceWorker.register('./sw.js?v=sketch4');
+      const reg = await navigator.serviceWorker.register('./sw.js?v=gradient2');
       await reg.update();
       console.log('Service Worker registered successfully:', reg.scope);
     } catch (err) {
