@@ -18,6 +18,27 @@ const MANUAL_SUPABASE_ANON_KEY = "sb_publishable_IED8Q0cnxphV6LWsaOV9cg_qChpAX8H
 const MANUAL_VAPID_PUBLIC_KEY = "BKN-p8vqsDGJ2jBjJwgO4QFjerXfPkDAUD6Gk9EAyMlnvOKWtV11UlvzHoC6TqFEXc3nas87Wqq3sjsE7lBYh7I"; // e.g., "BEl62iUYgUivxIkv69yViEuiBIa-..."
 const DEFAULT_SUPABASE_URL = "";
 
+function boostSdpBitrate(sdp) {
+  if (!sdp) return sdp;
+  let lines = sdp.split('\r\n');
+  let newLines = [];
+  let videoSection = false;
+  for (let i = 0; i < lines.length; i++) {
+    let line = lines[i];
+    if (line.startsWith('m=video')) {
+      videoSection = true;
+    } else if (line.startsWith('m=')) {
+      videoSection = false;
+    }
+    newLines.push(line);
+    if (videoSection && (line.startsWith('c=') || line.startsWith('a=mid'))) {
+      newLines.push('b=AS:8000'); // 8 Mbps
+      newLines.push('b=TIAS:8000000');
+    }
+  }
+  return newLines.join('\r\n');
+}
+
 // State Management
 const state = {
   supabase: null,
@@ -891,6 +912,7 @@ async function initiateVideoCall() {
 
     // Create WebRTC Offer
     const offer = await state.peerConnection.createOffer();
+    offer.sdp = boostSdpBitrate(offer.sdp);
     await state.peerConnection.setLocalDescription(offer);
 
     sendSignaling({
@@ -1173,18 +1195,27 @@ async function handleSignalingMessage(data) {
     return;
   }
 
-  if (data.type === 'arcade-input' || data.type === 'arcade-mouse') {
-    simulateHostArcadeEvent({
-      type: data.inputType || data.type,
-      key: data.key,
-      code: data.code,
-      keyCode: data.keyCode,
-      which: data.which,
-      x: data.x,
-      y: data.y,
-      button: data.button,
-      buttons: data.buttons
+  if (data.type === 'arcade-input') {
+    const kbEvent = new KeyboardEvent(data.inputType, {
+        key: data.key,
+        code: data.code,
+        keyCode: data.keyCode,
+        which: data.which,
+        bubbles: true,
+        cancelable: true,
+        composed: true
     });
+    const player = document.querySelector('#arcade-game ruffle-player');
+    if (player) {
+        player.dispatchEvent(kbEvent);
+        const canvas = player.shadowRoot?.querySelector('canvas');
+        if (canvas) canvas.dispatchEvent(kbEvent);
+    }
+    return;
+  }
+
+  if (data.type === 'arcade-mouse') {
+    simulateHostMouseEvent(data.mouseType, data.relX, data.relY, data.button, data.buttons);
     return;
   }
 
@@ -1272,6 +1303,7 @@ async function handleSignalingMessage(data) {
 
     await state.peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
     const answer = await state.peerConnection.createAnswer();
+    answer.sdp = boostSdpBitrate(answer.sdp);
     await state.peerConnection.setLocalDescription(answer);
 
     sendSignaling({
@@ -1574,6 +1606,7 @@ async function answerPendingVideoCall(data) {
 
     await state.peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
     const answer = await state.peerConnection.createAnswer();
+    answer.sdp = boostSdpBitrate(answer.sdp);
     await state.peerConnection.setLocalDescription(answer);
 
     sendSignaling({
@@ -2038,83 +2071,33 @@ function clearVideoMessages(broadcast = true) {
 /* ARCADE OVERLAY CONTROLLER & SIGNALING SYSTEM (Issue 1 & 2) */
 /* ========================================================== */
 
-function simulateHostArcadeEvent(data) {
-  const player = document.querySelector('#arcade-game ruffle-player');
-  if (!player) return;
-  const canvas = player.shadowRoot?.querySelector('canvas') || player;
-
-  if (data.type === 'keydown' || data.type === 'keyup') {
-    const kbEvent = new KeyboardEvent(data.type, {
-      key: data.key,
-      code: data.code,
-      keyCode: data.keyCode,
-      which: data.which,
-      bubbles: true,
-      cancelable: true,
-      composed: true
-    });
-    player.dispatchEvent(kbEvent);
-    if (canvas !== player) {
-      canvas.dispatchEvent(kbEvent);
-    }
-  } else if (['mousemove', 'mousedown', 'mouseup', 'click'].includes(data.type)) {
-    const rect = canvas.getBoundingClientRect();
-    const hostX = rect.left + data.x * rect.width;
-    const hostY = rect.top + data.y * rect.height;
-
-    const mouseEvent = new MouseEvent(data.type, {
-      clientX: hostX,
-      clientY: hostY,
-      screenX: hostX,
-      screenY: hostY,
-      button: data.button || 0,
-      buttons: data.buttons || 0,
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-      view: window
-    });
-
-    let pointerType = '';
-    if (data.type === 'mousemove') pointerType = 'pointermove';
-    else if (data.type === 'mousedown') pointerType = 'pointerdown';
-    else if (data.type === 'mouseup') pointerType = 'pointerup';
-
-    canvas.dispatchEvent(mouseEvent);
-    player.dispatchEvent(mouseEvent);
-
-    if (pointerType) {
-      const pointerEvent = new PointerEvent(pointerType, {
-        clientX: hostX,
-        clientY: hostY,
-        screenX: hostX,
-        screenY: hostY,
-        button: data.button || 0,
-        buttons: data.buttons || 0,
-        bubbles: true,
-        cancelable: true,
-        composed: true,
-        view: window,
-        isPrimary: true
-      });
-      canvas.dispatchEvent(pointerEvent);
-      player.dispatchEvent(pointerEvent);
-    }
-  }
-}
-
 function setupArcadeDataChannel(channel) {
   if (!channel) return;
   channel.onopen = () => {
-    console.log('Arcade controller sync established!');
+    console.log('Arcade keyboard and mouse sync established!');
     showToast('🎮 Game controller channel connected!', 'success');
   };
   channel.onmessage = (event) => {
     try {
       const msg = JSON.parse(event.data);
-      if (['keydown', 'keyup', 'mousemove', 'mousedown', 'mouseup', 'click'].includes(msg.type) || msg.type === 'arcade-mouse') {
-        const mappedType = msg.type === 'arcade-mouse' ? msg.inputType : msg.type;
-        simulateHostArcadeEvent({ ...msg, type: mappedType });
+      if (msg.type === 'keydown' || msg.type === 'keyup') {
+        const kbEvent = new KeyboardEvent(msg.type, {
+          key: msg.key,
+          code: msg.code,
+          keyCode: msg.keyCode,
+          which: msg.which,
+          bubbles: true,
+          cancelable: true,
+          composed: true
+        });
+        const player = document.querySelector('#arcade-game ruffle-player');
+        if (player) {
+          player.dispatchEvent(kbEvent);
+          const canvas = player.shadowRoot?.querySelector('canvas');
+          if (canvas) canvas.dispatchEvent(kbEvent);
+        }
+      } else if (['mousemove', 'mousedown', 'mouseup', 'click'].includes(msg.type)) {
+        simulateHostMouseEvent(msg.type, msg.relX, msg.relY, msg.button, msg.buttons);
       } else if (msg.type === 'arcade-chat') {
         appendArcadeChatMessage(msg.sender, msg.text);
       }
@@ -2124,18 +2107,38 @@ function setupArcadeDataChannel(channel) {
   };
 }
 
+function simulateHostMouseEvent(type, relX, relY, button = 0, buttons = 0) {
+  const player = document.querySelector('#arcade-game ruffle-player');
+  if (!player) return;
+  const canvas = player.shadowRoot?.querySelector('canvas') || player.querySelector('canvas') || player;
+  if (!canvas) return;
+
+  const rect = canvas.getBoundingClientRect();
+  const absX = rect.left + (relX * rect.width);
+  const absY = rect.top + (relY * rect.height);
+
+  const mouseEvent = new MouseEvent(type, {
+    clientX: absX,
+    clientY: absY,
+    screenX: absX,
+    screenY: absY,
+    button: button,
+    buttons: buttons,
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    view: window
+  });
+  canvas.dispatchEvent(mouseEvent);
+}
+
 function handleArcadeGuestInput(e) {
   if (document.activeElement === document.getElementById('arcade-chat-input')) return;
 
-  // Prevent default action (scrolling) for common gameplay keys
-  const preventKeys = ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'];
-  if (preventKeys.includes(e.code) || preventKeys.includes(e.key)) {
-    e.preventDefault();
+  // Do not block standard browser shortcuts
+  if (e.ctrlKey || e.metaKey || e.key === 'F5' || e.key === 'F11' || e.key === 'F12') {
+    return;
   }
-
-  // Skip system keys that could disrupt browser function
-  const ignoredKeys = ['F5', 'F11', 'F12'];
-  if (ignoredKeys.includes(e.key)) return;
 
   const payload = {
     type: e.type,
@@ -2158,43 +2161,52 @@ function handleArcadeGuestInput(e) {
       sender: state.userName
     });
   }
+
+  // Prevent default scroll behaviors inside game mode for typical gaming keys
+  const preventKeys = ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab', 'Backspace'];
+  if (preventKeys.includes(e.code) || preventKeys.includes(e.key)) {
+    e.preventDefault();
+  }
 }
 
 function handleArcadeGuestMouse(e) {
-  const arcadeGameVideo = document.getElementById('arcade-game-video');
-  if (!arcadeGameVideo) return;
+  const videoEl = document.getElementById('arcade-game-video');
+  if (!videoEl) return;
 
-  const rect = arcadeGameVideo.getBoundingClientRect();
-  if (rect.width === 0 || rect.height === 0) return;
+  const rect = videoEl.getBoundingClientRect();
+  if (rect.width <= 0 || rect.height <= 0) return;
 
-  const x = (e.clientX - rect.left) / rect.width;
-  const y = (e.clientY - rect.top) / rect.height;
-
-  // Clamping coordinates
-  const clampedX = Math.max(0, Math.min(1, x));
-  const clampedY = Math.max(0, Math.min(1, y));
-
-  // If mousedown, prevent default to stop browser selection/drag behavior
-  if (e.type === 'mousedown') {
-    e.preventDefault();
-  }
+  const relX = (e.clientX - rect.left) / rect.width;
+  const relY = (e.clientY - rect.top) / rect.height;
 
   const payload = {
     type: e.type,
-    x: clampedX,
-    y: clampedY,
+    relX: relX,
+    relY: relY,
     button: e.button,
     buttons: e.buttons
   };
 
   if (state.arcadeDataChannel && state.arcadeDataChannel.readyState === 'open') {
-    state.arcadeDataChannel.send(JSON.stringify({ type: 'arcade-mouse', ...payload }));
+    if (e.type === 'mousemove') {
+      const now = Date.now();
+      if (!state.lastMouseDataTime) state.lastMouseDataTime = 0;
+      if (now - state.lastMouseDataTime < 10) return; // ~100Hz max rate
+      state.lastMouseDataTime = now;
+    }
+    state.arcadeDataChannel.send(JSON.stringify(payload));
   } else {
+    if (e.type === 'mousemove') {
+      const now = Date.now();
+      if (!state.lastMouseSignalTime) state.lastMouseSignalTime = 0;
+      if (now - state.lastMouseSignalTime < 50) return; // ~20Hz max rate for fallback signaling
+      state.lastMouseSignalTime = now;
+    }
     sendSignaling({
       type: 'arcade-mouse',
-      inputType: e.type,
-      x: clampedX,
-      y: clampedY,
+      mouseType: e.type,
+      relX: relX,
+      relY: relY,
       button: e.button,
       buttons: e.buttons,
       sender: state.userName
@@ -2278,14 +2290,14 @@ async function initArcadeHost() {
     const canvas = player.shadowRoot?.querySelector('canvas');
     if (canvas) {
       clearInterval(checkCanvasInterval);
-      showToast('Game loaded! Capturing and broadcasting stream (60 FPS)...', 'success');
+      showToast('Game loaded! Capturing and broadcasting stream...', 'success');
       
       try {
         const gameStream = canvas.captureStream(60);
         state.arcadeGameStream = gameStream;
         const gameTrack = gameStream.getVideoTracks()[0];
-        if (gameTrack && typeof gameTrack.applyConstraints === 'function') {
-          gameTrack.applyConstraints({ frameRate: 60 }).catch(e => console.warn(e));
+        if (gameTrack && 'contentHint' in gameTrack) {
+          gameTrack.contentHint = 'motion';
         }
         
         if (state.peerConnection) {
@@ -2294,8 +2306,26 @@ async function initArcadeHost() {
           }
           state.arcadeGameSender = state.peerConnection.addTrack(gameTrack, gameStream);
           
+          // Maximize sender parameters for high FPS and high bitrate
+          try {
+            const parameters = state.arcadeGameSender.getParameters();
+            if (!parameters.encodings) {
+              parameters.encodings = [{}];
+            }
+            parameters.encodings.forEach(encoding => {
+              encoding.maxBitrate = 8000000; // 8 Mbps
+              encoding.maxFramerate = 60; // 60 FPS
+              encoding.priority = 'high';
+              encoding.networkPriority = 'high';
+            });
+            state.arcadeGameSender.setParameters(parameters).catch(e => console.warn(e));
+          } catch (e) {
+            console.warn('Could not set sender parameters:', e);
+          }
+          
           // Renegotiate
           state.peerConnection.createOffer().then(offer => {
+            offer.sdp = boostSdpBitrate(offer.sdp);
             return state.peerConnection.setLocalDescription(offer).then(() => {
               sendSignaling({
                 type: 'offer',
@@ -2328,12 +2358,11 @@ function initArcadeGuest() {
       arcadeGameVideo.play().catch(err => console.warn('Guest video play failed:', err));
     }
 
-    // Attach high-fidelity mouse interaction listeners to the game video screen
+    // Register guest mouse events for canvas simulation
     arcadeGameVideo.addEventListener('mousemove', handleArcadeGuestMouse);
     arcadeGameVideo.addEventListener('mousedown', handleArcadeGuestMouse);
     arcadeGameVideo.addEventListener('mouseup', handleArcadeGuestMouse);
     arcadeGameVideo.addEventListener('click', handleArcadeGuestMouse);
-    arcadeGameVideo.addEventListener('contextmenu', e => e.preventDefault());
   }
 
   document.getElementById('arcade-guest-guide-panel')?.classList.remove('hidden');
@@ -2484,18 +2513,19 @@ async function leaveArcade(broadcast = true) {
   } else {
     // Clear the guest's remote arcade stream
     state.arcadeRemoteStream = null;
+
+    // Deregister guest mouse events
+    const arcadeGameVideo = document.getElementById('arcade-game-video');
+    if (arcadeGameVideo) {
+      arcadeGameVideo.removeEventListener('mousemove', handleArcadeGuestMouse);
+      arcadeGameVideo.removeEventListener('mousedown', handleArcadeGuestMouse);
+      arcadeGameVideo.removeEventListener('mouseup', handleArcadeGuestMouse);
+      arcadeGameVideo.removeEventListener('click', handleArcadeGuestMouse);
+    }
   }
 
   document.removeEventListener('keydown', handleArcadeGuestInput);
   document.removeEventListener('keyup', handleArcadeGuestInput);
-
-  const arcadeGameVideo = document.getElementById('arcade-game-video');
-  if (arcadeGameVideo) {
-    arcadeGameVideo.removeEventListener('mousemove', handleArcadeGuestMouse);
-    arcadeGameVideo.removeEventListener('mousedown', handleArcadeGuestMouse);
-    arcadeGameVideo.removeEventListener('mouseup', handleArcadeGuestMouse);
-    arcadeGameVideo.removeEventListener('click', handleArcadeGuestMouse);
-  }
 
   const arcadeOverlay = document.getElementById('arcade-overlay');
   if (arcadeOverlay) {
