@@ -1023,9 +1023,34 @@ function setupPeerConnection(targetPeer = 'partner') {
       }
     } else {
       if (!state.remoteStreams) state.remoteStreams = {};
-      state.remoteStreams[targetPeer] = event.streams[0];
-      renderRemoteParticipants();
-      showToast(`${targetPeer} connected to video stream! 📹❤️`, 'success');
+      const stream = event.streams[0];
+      const mainRemoteStream = state.remoteStreams[targetPeer];
+      
+      if (mainRemoteStream && stream && mainRemoteStream.id !== stream.id) {
+        // This is a secondary stream, i.e., the Arcade Game Stream!
+        state.arcadeRemoteStream = stream;
+        
+        // Update the guest arcade game video display if currently in arcade
+        const arcadeGameVideo = document.getElementById('arcade-game-video');
+        if (arcadeGameVideo) {
+          arcadeGameVideo.srcObject = stream;
+          arcadeGameVideo.play().catch(e => console.debug(e));
+        }
+        showToast('🎮 Game stream connected!', 'success');
+      } else {
+        // This is the primary webcam stream
+        state.remoteStreams[targetPeer] = stream;
+        renderRemoteParticipants();
+        
+        // Also update the arcade remote bubble with the actual webcam stream!
+        const arcadeRemoteVideo = document.getElementById('arcade-remote-video');
+        if (arcadeRemoteVideo) {
+          arcadeRemoteVideo.srcObject = stream;
+          arcadeRemoteVideo.play().catch(e => console.debug(e));
+        }
+        
+        showToast(`${targetPeer} connected to video stream! 📹❤️`, 'success');
+      }
     }
   };
 
@@ -2122,9 +2147,13 @@ function initArcadeUI(role) {
     arcadeLocalVideo.srcObject = state.localStream;
     arcadeLocalVideo.play().catch(() => {});
   }
-  if (arcadeRemoteVideo && elements.remoteVideo && elements.remoteVideo.srcObject) {
-    arcadeRemoteVideo.srcObject = elements.remoteVideo.srcObject;
-    arcadeRemoteVideo.play().catch(() => {});
+  if (arcadeRemoteVideo) {
+    const peers = Object.keys(state.remoteStreams || {});
+    const webcamStream = peers.length > 0 ? state.remoteStreams[peers[0]] : (elements.remoteVideo?.srcObject);
+    if (webcamStream) {
+      arcadeRemoteVideo.srcObject = webcamStream;
+      arcadeRemoteVideo.play().catch(() => {});
+    }
   }
 
   setupArcadeControls();
@@ -2164,12 +2193,23 @@ async function initArcadeHost() {
         const gameTrack = gameStream.getVideoTracks()[0];
         
         if (state.peerConnection) {
-          const senders = state.peerConnection.getSenders();
-          const videoSender = senders.find(s => s.track?.kind === 'video');
-          if (videoSender) {
-            state.originalWebcamTrack = videoSender.track;
-            videoSender.replaceTrack(gameTrack);
+          if (state.arcadeGameSender) {
+            try { state.peerConnection.removeTrack(state.arcadeGameSender); } catch(e){}
           }
+          state.arcadeGameSender = state.peerConnection.addTrack(gameTrack, gameStream);
+          
+          // Renegotiate
+          state.peerConnection.createOffer().then(offer => {
+            return state.peerConnection.setLocalDescription(offer).then(() => {
+              sendSignaling({
+                type: 'offer',
+                sdp: offer,
+                sender: state.userName
+              });
+            });
+          }).catch(err => {
+            console.error('Failed to renegotiate for game stream:', err);
+          });
         }
       } catch (streamErr) {
         console.error('Failed to capture ruffle canvas stream:', streamErr);
@@ -2184,7 +2224,10 @@ function initArcadeGuest() {
   if (arcadeGameVideo) {
     arcadeGameVideo.classList.remove('hidden');
     
-    if (elements.remoteVideo && elements.remoteVideo.srcObject) {
+    if (state.arcadeRemoteStream) {
+      arcadeGameVideo.srcObject = state.arcadeRemoteStream;
+      arcadeGameVideo.play().catch(err => console.warn('Guest video play failed:', err));
+    } else if (elements.remoteVideo && elements.remoteVideo.srcObject) {
       arcadeGameVideo.srcObject = elements.remoteVideo.srcObject;
       arcadeGameVideo.play().catch(err => console.warn('Guest video play failed:', err));
     }
@@ -2316,13 +2359,28 @@ async function leaveArcade(broadcast = true) {
   }
 
   if (state.arcadeRole === 'host') {
-    if (state.peerConnection && state.originalWebcamTrack) {
-      const senders = state.peerConnection.getSenders();
-      const videoSender = senders.find(s => s.track?.kind === 'video');
-      if (videoSender) {
-        await videoSender.replaceTrack(state.originalWebcamTrack);
+    if (state.arcadeGameSender && state.peerConnection) {
+      try {
+        state.peerConnection.removeTrack(state.arcadeGameSender);
+      } catch (e) {}
+      state.arcadeGameSender = null;
+      
+      // Renegotiate to clean up the peer connection
+      try {
+        const offer = await state.peerConnection.createOffer();
+        await state.peerConnection.setLocalDescription(offer);
+        sendSignaling({
+          type: 'offer',
+          sdp: offer,
+          sender: state.userName
+        });
+      } catch (e) {
+        console.error('Failed to renegotiate on leaving arcade:', e);
       }
     }
+  } else {
+    // Clear the guest's remote arcade stream
+    state.arcadeRemoteStream = null;
   }
 
   document.removeEventListener('keydown', handleArcadeGuestInput);
