@@ -2128,3 +2128,329 @@ body.is-dragging-pane, body.is-dragging-pane * {
   -webkit-user-select: none !important;
 }
 
+/* ========================================== */
+/* ARCADE OVERLAY STYLES (Issue 1 & Issue 2) */
+/* ========================================== */
+
+#arcade-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: black;
+    display: none; /* Controlled dynamically via JS (display: flex) */
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    font-family: 'Inter', sans-serif;
+    color: white;
+    user-select: none;
+    z-index: 10000;
+}
+
+#arcade-overlay #arcade-game-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+}
+
+#arcade-overlay #arcade-game, 
+#arcade-overlay ruffle-player, 
+#arcade-overlay #arcade-game-video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+}
+
+#arcade-overlay .camera-bubble {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    overflow: hidden;
+    position: absolute;
+    border: 3px solid #d98c7e;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+    cursor: move;
+    touch-action: none;
+    z-index: 10;
+    background: #1c1917;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#arcade-overlay #arcade-local-bubble {
+    bottom: 100px;
+    right: 30px;
+}
+
+#arcade-overlay #arcade-remote-bubble {
+    bottom: 100px;
+    left: 30px;
+}
+
+#arcade-overlay .camera-bubble video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+
+#arcade-overlay .bubble-label {
+    position: absolute;
+    bottom: 6px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.7);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: #fff;
+    pointer-events: none;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    white-space: nowrap;
+}
+
+/* Vertical Stacking Control Bar (Issue 2) */
+#arcade-overlay .control-bar {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 20;
+    display: flex;
+    flex-direction: column; /* Stacked vertically! */
+    align-items: center;
+    gap: 12px;
+    background: rgba(18, 18, 18, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    padding: 20px 10px;
+    border-radius: 30px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#arcade-overlay .control-bar.side-right {
+    right: 20px;
+    left: auto;
+}
+
+#arcade-overlay .control-bar.side-left {
+    left: 20px;
+    right: auto;
+}
+
+#arcade-overlay .control-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    font-size: 1.2rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+
+#arcade-overlay .control-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.05);
+}
+
+#arcade-overlay .control-btn.active-off {
+    background: #ea4335 !important;
+}
+
+#arcade-overlay .control-btn.btn-danger {
+    background: #ea4335;
+    border-radius: 20px;
+    width: auto;
+    padding: 0 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    gap: 6px;
+    height: 40px;
+}
+
+#arcade-overlay .control-btn.btn-danger:hover {
+    background: #d93025;
+}
+
+#arcade-overlay .control-btn.toggle-side-btn {
+    background: rgba(217, 140, 126, 0.2);
+    border: 1px solid rgba(217, 140, 126, 0.4);
+    color: #d98c7e;
+    font-size: 1rem;
+    margin-bottom: 4px;
+}
+
+#arcade-overlay .control-btn.toggle-side-btn:hover {
+    background: rgba(217, 140, 126, 0.4);
+}
+
+/* Chat Overlay scoped */
+#arcade-overlay .chat-overlay {
+    position: absolute;
+    bottom: 90px;
+    right: 30px;
+    width: 320px;
+    height: 400px;
+    background: rgba(20, 20, 20, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 16px;
+    box-shadow: 0 12px 36px rgba(0,0,0,0.6);
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    animation: arcadeSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes arcadeSlideIn {
+    from { transform: translateY(20px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+#arcade-overlay .chat-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+#arcade-overlay .chat-header .close-btn {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 1.1rem;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+#arcade-overlay .chat-header .close-btn:hover {
+    opacity: 1;
+}
+
+#arcade-overlay .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+#arcade-overlay .chat-msg {
+    max-width: 80%;
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+#arcade-overlay .chat-msg.self {
+    align-self: flex-end;
+    background: #d98c7e;
+    color: #fff;
+}
+
+#arcade-overlay .chat-msg.partner {
+    align-self: flex-start;
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+#arcade-overlay .chat-msg-meta {
+    font-size: 0.7rem;
+    opacity: 0.6;
+    margin-bottom: 2px;
+}
+
+#arcade-overlay .chat-form {
+    padding: 12px;
+    display: flex;
+    gap: 8px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+#arcade-overlay .chat-form input {
+    flex: 1;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: #fff;
+    outline: none;
+    font-size: 0.9rem;
+}
+
+#arcade-overlay .chat-form input:focus {
+    border-color: #d98c7e;
+}
+
+#arcade-overlay .chat-form button {
+    background: #d98c7e;
+    border: none;
+    border-radius: 8px;
+    width: 38px;
+    height: 38px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: transform 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#arcade-overlay .chat-form button:hover {
+    transform: scale(1.05);
+}
+
+#arcade-overlay .guest-guide {
+    position: absolute;
+    top: 24px;
+    left: 24px;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(8px);
+    padding: 12px 18px;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.1);
+    font-size: 0.8rem;
+    z-index: 5;
+    max-width: 260px;
+    line-height: 1.4;
+    color: white;
+}
+
+#arcade-overlay .guest-guide h4 {
+    margin: 0 0 6px 0;
+    color: #d98c7e;
+}
+
+#arcade-overlay .guest-guide ul {
+    margin: 0;
+    padding-left: 16px;
+}
+
+

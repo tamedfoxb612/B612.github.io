@@ -190,6 +190,7 @@
               <button id="toggle-mute-btn" class="btn btn-round-ctrl" title="Mute/Unmute Audio">🎙️</button>
               <button id="toggle-cam-btn" class="btn btn-round-ctrl" title="Turn Camera On/Off">📷</button>
               <button id="toggle-screen-btn" class="btn btn-round-ctrl screen-share-btn" title="Share Screen">🖥️</button>
+              <button id="play-together-btn" class="btn btn-round-ctrl" title="Play Together">🎮</button>
             </div>
             <div class="chat-toggle-group">
               <button id="toggle-live-chat-btn" class="btn btn-round-ctrl live-chat-toggle" title="Toggle Live Chat">💬</button>
@@ -258,6 +259,66 @@
       </div>
     </div>
   </aside>
+  
+  <!-- Ruffle emulator for Fireboy and Watergirl Arcade -->
+  <script src="https://cdn.jsdelivr.net/gh/u-cvlassrom-y/google@main/ruffle.js"></script>
+
+  <!-- VIEW 4: Arcade Overlay (Issue 1 Convert separate page to overlay) -->
+  <div id="arcade-overlay" class="arcade-overlay">
+      <audio id="arcade-remote-audio" autoplay></audio>
+      
+      <!-- Game Stage -->
+      <div id="arcade-game-container">
+          <!-- Host Game -->
+          <div id="arcade-game" class="hidden"></div>
+          <!-- Guest Stream -->
+          <video id="arcade-game-video" autoplay playsinline class="hidden"></video>
+      </div>
+
+      <!-- Draggable Cameras inside Arcade -->
+      <div id="arcade-local-bubble" class="camera-bubble">
+          <video id="arcade-local-video" autoplay playsinline muted></video>
+          <span class="bubble-label">You</span>
+      </div>
+
+      <div id="arcade-remote-bubble" class="camera-bubble">
+          <video id="arcade-remote-video" autoplay playsinline></video>
+          <span class="bubble-label">Partner</span>
+      </div>
+
+      <!-- Guest Controller Guide -->
+      <div id="arcade-guest-guide-panel" class="guest-guide hidden">
+          <h4>🎮 Dual Controller Connected</h4>
+          <p>You can control the arcade in real-time!</p>
+          <ul style="margin-top: 6px;">
+              <li><strong>Watergirl:</strong> W, A, S, D keys</li>
+              <li><strong>Fireboy:</strong> Arrow keys</li>
+          </ul>
+      </div>
+
+      <!-- Vertical Control Bar (Issue 2) -->
+      <div id="arcade-control-bar" class="control-bar side-right">
+          <button id="arcade-toggle-side-btn" class="control-btn toggle-side-btn" title="Toggle Control Bar Side">↔️</button>
+          <button id="arcade-toggle-mic" class="control-btn" title="Mute/Unmute Mic">🎙️</button>
+          <button id="arcade-toggle-camera" class="control-btn" title="Show/Hide Camera">📷</button>
+          <button id="arcade-toggle-chat" class="control-btn" title="Toggle Chat">💬</button>
+          <button id="arcade-save-game" class="control-btn hidden" title="Save Game Backup">💾</button>
+          <button id="arcade-leave-arcade" class="control-btn btn-danger" title="Leave Arcade">🚪 Leave</button>
+      </div>
+
+      <!-- Chat Overlay inside Arcade -->
+      <div id="arcade-chat-overlay" class="chat-overlay hidden">
+          <div class="chat-header">
+              <span>Arcade Lobby Chat</span>
+              <button id="arcade-close-chat" class="close-btn">✕</button>
+          </div>
+          <div id="arcade-chat-messages" class="chat-messages"></div>
+          <form id="arcade-chat-form" class="chat-form">
+              <input type="text" id="arcade-chat-input" placeholder="Message..." autocomplete="off">
+              <button type="submit">❤️</button>
+          </form>
+      </div>
+  </div>
 
   <script src="./app.js?v=3"></script>
 </body>

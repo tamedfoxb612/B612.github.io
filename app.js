@@ -122,6 +122,7 @@ const elements = {
   sidebarOverlay: document.getElementById('sidebar-overlay'),
   toggleLiveChatBtn: document.getElementById('toggle-live-chat-btn'),
   toggleTtsSidebarBtn: document.getElementById('toggle-tts-sidebar-btn'),
+  playTogetherBtn: document.getElementById('play-together-btn'),
 };
 
 // Initialize PWA & Service Worker
@@ -231,6 +232,7 @@ function setupEventListeners() {
   elements.toggleMuteBtn?.addEventListener('click', toggleMute);
   elements.toggleCamBtn?.addEventListener('click', toggleCamera);
   elements.toggleScreenBtn?.addEventListener('click', toggleScreenShare);
+  elements.playTogetherBtn?.addEventListener('click', startPlayTogether);
   
   // Sidebar Drawer & Controls
   const openSidebar = () => {
@@ -855,6 +857,21 @@ function appendFeedItem(type, content, sender, timeObj, animate = true) {
 }
 
 /**
+ * Start Play Together Arcade Logic
+ */
+function startPlayTogether() {
+  if (!state.roomCode) {
+    showToast('You must join a room first!', 'error');
+    return;
+  }
+  showToast('🎮 Launching "Play Together" Arcade overlay...', 'success');
+  sendSignaling({ type: 'play-together', sender: state.userName });
+  setTimeout(() => {
+    initArcadeUI('host');
+  }, 1000);
+}
+
+/**
  * WebRTC Video Calling Logic
  */
 async function initiateVideoCall() {
@@ -976,6 +993,22 @@ function setupPeerConnection(targetPeer = 'partner') {
     state.localStream.getTracks().forEach(track => {
       pc.addTrack(track, state.localStream);
     });
+  }
+
+  // Setup WebRTC Data Channel for arcade keyboard synchronization (Issue 1)
+  if (targetPeer === 'partner') {
+    if (state.isCalling) {
+      try {
+        state.arcadeDataChannel = pc.createDataChannel('game-inputs');
+        setupArcadeDataChannel(state.arcadeDataChannel);
+      } catch (e) {
+        console.warn('DataChannel creation failed:', e);
+      }
+    }
+    pc.ondatachannel = (event) => {
+      state.arcadeDataChannel = event.channel;
+      setupArcadeDataChannel(state.arcadeDataChannel);
+    };
   }
 
   // Handle incoming remote stream
@@ -1106,6 +1139,43 @@ function updateSpeechBubblePositions() {
 
 async function handleSignalingMessage(data) {
   if (!data || data.sender === state.userName) return;
+
+  if (data.type === 'play-together') {
+    showToast(`🎮 Partner started a Play Together session! Opening Arcade overlay...`, 'success');
+    setTimeout(() => {
+      initArcadeUI('guest');
+    }, 1500);
+    return;
+  }
+
+  if (data.type === 'arcade-input') {
+    const kbEvent = new KeyboardEvent(data.inputType, {
+        key: data.key,
+        code: data.code,
+        keyCode: data.keyCode,
+        which: data.which,
+        bubbles: true,
+        cancelable: true,
+        composed: true
+    });
+    const player = document.querySelector('#arcade-game ruffle-player');
+    if (player) {
+        player.dispatchEvent(kbEvent);
+        const canvas = player.shadowRoot?.querySelector('canvas');
+        if (canvas) canvas.dispatchEvent(kbEvent);
+    }
+    return;
+  }
+
+  if (data.type === 'arcade-chat-msg') {
+    appendArcadeChatMessage(data.sender, data.text);
+    return;
+  }
+
+  if (data.type === 'leave-arcade') {
+    leaveArcade(false);
+    return;
+  }
 
   if (data.type === 'clear-messages') {
     clearRoomMessages(false);
@@ -1940,6 +2010,413 @@ function clearVideoMessages(broadcast = true) {
   showToast('🧹 Video call session messages cleared.');
   if (broadcast) {
     sendSignaling({ type: 'clear-video-messages', sender: state.userName });
+  }
+}
+
+/* ========================================================== */
+/* ARCADE OVERLAY CONTROLLER & SIGNALING SYSTEM (Issue 1 & 2) */
+/* ========================================================== */
+
+function setupArcadeDataChannel(channel) {
+  if (!channel) return;
+  channel.onopen = () => {
+    console.log('Arcade keyboard sync established!');
+    showToast('🎮 Game controller channel connected!', 'success');
+  };
+  channel.onmessage = (event) => {
+    try {
+      const msg = JSON.parse(event.data);
+      if (msg.type === 'keydown' || msg.type === 'keyup') {
+        const kbEvent = new KeyboardEvent(msg.type, {
+          key: msg.key,
+          code: msg.code,
+          keyCode: msg.keyCode,
+          which: msg.which,
+          bubbles: true,
+          cancelable: true,
+          composed: true
+        });
+        const player = document.querySelector('#arcade-game ruffle-player');
+        if (player) {
+          player.dispatchEvent(kbEvent);
+          const canvas = player.shadowRoot?.querySelector('canvas');
+          if (canvas) canvas.dispatchEvent(kbEvent);
+        }
+      } else if (msg.type === 'arcade-chat') {
+        appendArcadeChatMessage(msg.sender, msg.text);
+      }
+    } catch (e) {
+      console.warn('Error parsing data channel message:', e);
+    }
+  };
+}
+
+function handleArcadeGuestInput(e) {
+  if (document.activeElement === document.getElementById('arcade-chat-input')) return;
+
+  const allowedKeys = [
+    'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
+    'KeyW', 'KeyA', 'KeyS', 'KeyD', 'w', 'a', 's', 'd', 'W', 'A', 'S', 'D'
+  ];
+
+  if (allowedKeys.includes(e.code) || allowedKeys.includes(e.key)) {
+    const payload = {
+      type: e.type,
+      key: e.key,
+      code: e.code,
+      keyCode: e.keyCode,
+      which: e.which
+    };
+    
+    if (state.arcadeDataChannel && state.arcadeDataChannel.readyState === 'open') {
+      state.arcadeDataChannel.send(JSON.stringify(payload));
+    } else {
+      sendSignaling({
+        type: 'arcade-input',
+        inputType: e.type,
+        key: e.key,
+        code: e.code,
+        keyCode: e.keyCode,
+        which: e.which,
+        sender: state.userName
+      });
+    }
+  }
+}
+
+function appendArcadeChatMessage(sender, text) {
+  const isSelf = sender === 'You' || sender === state.userName;
+  const displayName = isSelf ? 'You' : sender;
+  const msgEl = document.createElement('div');
+  msgEl.className = `chat-msg ${isSelf ? 'self' : 'partner'}`;
+  msgEl.innerHTML = `
+    <div class="chat-msg-meta">${displayName}</div>
+    <div>${text}</div>
+  `;
+  const arcadeChatMessages = document.getElementById('arcade-chat-messages');
+  if (arcadeChatMessages) {
+    arcadeChatMessages.appendChild(msgEl);
+    arcadeChatMessages.scrollTop = arcadeChatMessages.scrollHeight;
+  }
+}
+
+function initArcadeUI(role) {
+  state.inArcade = true;
+  state.arcadeRole = role;
+
+  const arcadeOverlay = document.getElementById('arcade-overlay');
+  if (arcadeOverlay) {
+    arcadeOverlay.style.display = 'flex';
+  }
+  if (elements.videoUi) {
+    elements.videoUi.classList.add('hidden');
+  }
+
+  setupBubbleDragging(document.getElementById('arcade-local-bubble'));
+  setupBubbleDragging(document.getElementById('arcade-remote-bubble'));
+
+  const arcadeLocalVideo = document.getElementById('arcade-local-video');
+  const arcadeRemoteVideo = document.getElementById('arcade-remote-video');
+
+  if (arcadeLocalVideo && state.localStream) {
+    arcadeLocalVideo.srcObject = state.localStream;
+    arcadeLocalVideo.play().catch(() => {});
+  }
+  if (arcadeRemoteVideo && elements.remoteVideo && elements.remoteVideo.srcObject) {
+    arcadeRemoteVideo.srcObject = elements.remoteVideo.srcObject;
+    arcadeRemoteVideo.play().catch(() => {});
+  }
+
+  setupArcadeControls();
+
+  if (role === 'host') {
+    initArcadeHost();
+  } else {
+    initArcadeGuest();
+  }
+}
+
+async function initArcadeHost() {
+  showToast('Initializing Game Emulator...', 'info');
+
+  const ruffle = window.RufflePlayer.newest();
+  const player = ruffle.createPlayer();
+  const arcadeGameContainer = document.getElementById('arcade-game');
+  if (arcadeGameContainer) {
+    arcadeGameContainer.innerHTML = '';
+    arcadeGameContainer.appendChild(player);
+    arcadeGameContainer.classList.remove('hidden');
+  }
+  
+  player.load("https://cdn.jsdelivr.net/gh/StarRepo444/ClassroomPlayV2@c28ef0cfdccbbfc61a42d9954f14af3115c7398a/games/flash/swf/fbwg.swf");
+
+  document.getElementById('arcade-save-game')?.classList.remove('hidden');
+
+  const checkCanvasInterval = setInterval(() => {
+    const canvas = player.shadowRoot?.querySelector('canvas');
+    if (canvas) {
+      clearInterval(checkCanvasInterval);
+      showToast('Game loaded! Capturing and broadcasting stream...', 'success');
+      
+      try {
+        const gameStream = canvas.captureStream(30);
+        state.arcadeGameStream = gameStream;
+        const gameTrack = gameStream.getVideoTracks()[0];
+        
+        if (state.peerConnection) {
+          const senders = state.peerConnection.getSenders();
+          const videoSender = senders.find(s => s.track?.kind === 'video');
+          if (videoSender) {
+            state.originalWebcamTrack = videoSender.track;
+            videoSender.replaceTrack(gameTrack);
+          }
+        }
+      } catch (streamErr) {
+        console.error('Failed to capture ruffle canvas stream:', streamErr);
+      }
+    }
+  }, 1000);
+}
+
+function initArcadeGuest() {
+  showToast('Connected to Host Arcade!', 'success');
+  const arcadeGameVideo = document.getElementById('arcade-game-video');
+  if (arcadeGameVideo) {
+    arcadeGameVideo.classList.remove('hidden');
+    
+    if (elements.remoteVideo && elements.remoteVideo.srcObject) {
+      arcadeGameVideo.srcObject = elements.remoteVideo.srcObject;
+      arcadeGameVideo.play().catch(err => console.warn('Guest video play failed:', err));
+    }
+  }
+
+  document.getElementById('arcade-guest-guide-panel')?.classList.remove('hidden');
+
+  document.addEventListener('keydown', handleArcadeGuestInput);
+  document.addEventListener('keyup', handleArcadeGuestInput);
+}
+
+function setupArcadeControls() {
+  const toggleSideBtn = document.getElementById('arcade-toggle-side-btn');
+  const controlBar = document.getElementById('arcade-control-bar');
+  
+  toggleSideBtn?.addEventListener('click', () => {
+    if (controlBar) {
+      if (controlBar.classList.contains('side-right')) {
+        controlBar.classList.remove('side-right');
+        controlBar.classList.add('side-left');
+      } else {
+        controlBar.classList.remove('side-left');
+        controlBar.classList.add('side-right');
+      }
+    }
+  });
+
+  const toggleMic = document.getElementById('arcade-toggle-mic');
+  toggleMic?.addEventListener('click', () => {
+    if (state.localStream) {
+      state.isMuted = !state.isMuted;
+      state.localStream.getAudioTracks().forEach(t => t.enabled = !state.isMuted);
+      toggleMic.classList.toggle('active-off', state.isMuted);
+      showToast(state.isMuted ? 'Microphone Muted' : 'Microphone Active');
+      updateControlEmojis();
+    }
+  });
+
+  const toggleCamera = document.getElementById('arcade-toggle-camera');
+  toggleCamera?.addEventListener('click', () => {
+    if (state.localStream) {
+      state.isCamOff = !state.isCamOff;
+      state.localStream.getVideoTracks().forEach(t => t.enabled = !state.isCamOff);
+      const localVid = document.getElementById('arcade-local-video');
+      if (localVid) localVid.style.opacity = state.isCamOff ? '0' : '1';
+      toggleCamera.classList.toggle('active-off', state.isCamOff);
+      showToast(state.isCamOff ? 'Webcam Paused' : 'Webcam Restored');
+      updateControlEmojis();
+    }
+  });
+
+  const toggleChat = document.getElementById('arcade-toggle-chat');
+  const chatOverlay = document.getElementById('arcade-chat-overlay');
+  toggleChat?.addEventListener('click', () => {
+    if (chatOverlay) {
+      chatOverlay.classList.toggle('hidden');
+      if (!chatOverlay.classList.contains('hidden')) {
+        document.getElementById('arcade-chat-input')?.focus();
+      }
+    }
+  });
+
+  document.getElementById('arcade-close-chat')?.addEventListener('click', () => {
+    chatOverlay?.classList.add('hidden');
+  });
+
+  const saveGame = document.getElementById('arcade-save-game');
+  saveGame?.addEventListener('click', () => {
+    try {
+      const backup = {};
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key.includes('ruffle') || key.includes('VirtualFS')) {
+          backup[key] = localStorage.getItem(key);
+        }
+      }
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(backup, null, 2));
+      const dlAnchor = document.createElement('a');
+      dlAnchor.setAttribute("href", dataStr);
+      dlAnchor.setAttribute("download", `b612_ruffle_arcade_backup_${Date.now()}.json`);
+      document.body.appendChild(dlAnchor);
+      dlAnchor.click();
+      dlAnchor.remove();
+      showToast('Manual save LSO backup triggered!', 'success');
+    } catch (e) {
+      showToast('Auto-save active! Progress stored in IndexedDB.', 'success');
+    }
+  });
+
+  document.getElementById('arcade-leave-arcade')?.addEventListener('click', () => {
+    leaveArcade(true);
+  });
+
+  const chatForm = document.getElementById('arcade-chat-form');
+  const chatInput = document.getElementById('arcade-chat-input');
+  chatForm?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (chatInput) {
+      const text = chatInput.value.trim();
+      if (text) {
+        appendArcadeChatMessage('You', text);
+        
+        if (state.arcadeDataChannel && state.arcadeDataChannel.readyState === 'open') {
+          state.arcadeDataChannel.send(JSON.stringify({
+            type: 'arcade-chat',
+            sender: state.userName,
+            text: text
+          }));
+        } else {
+          sendSignaling({
+            type: 'arcade-chat-msg',
+            sender: state.userName,
+            text: text
+          });
+        }
+        chatInput.value = '';
+      }
+    }
+  });
+}
+
+async function leaveArcade(broadcast = true) {
+  if (!state.inArcade) return;
+  state.inArcade = false;
+
+  if (state.arcadeGameStream) {
+    state.arcadeGameStream.getTracks().forEach(t => t.stop());
+    state.arcadeGameStream = null;
+  }
+
+  if (state.arcadeRole === 'host') {
+    if (state.peerConnection && state.originalWebcamTrack) {
+      const senders = state.peerConnection.getSenders();
+      const videoSender = senders.find(s => s.track?.kind === 'video');
+      if (videoSender) {
+        await videoSender.replaceTrack(state.originalWebcamTrack);
+      }
+    }
+  }
+
+  document.removeEventListener('keydown', handleArcadeGuestInput);
+  document.removeEventListener('keyup', handleArcadeGuestInput);
+
+  const arcadeOverlay = document.getElementById('arcade-overlay');
+  if (arcadeOverlay) {
+    arcadeOverlay.style.display = 'none';
+  }
+  if (elements.videoUi) {
+    elements.videoUi.classList.remove('hidden');
+  }
+
+  updateVideoLayout();
+
+  if (broadcast) {
+    sendSignaling({ type: 'leave-arcade', sender: state.userName });
+  }
+  
+  showToast('Left the Arcade. Webcam video call restored!');
+}
+
+function setupBubbleDragging(el) {
+  if (!el) return;
+  let pos1 = 0, pos2 = 0, pos3 = 0, pos4 = 0;
+  
+  el.addEventListener('mousedown', dragMouseDown);
+  el.addEventListener('touchstart', dragTouchStart, { passive: false });
+
+  function dragMouseDown(e) {
+    if (e.target.closest('button') || e.target.closest('input')) return;
+    e.preventDefault();
+    pos3 = e.clientX;
+    pos4 = e.clientY;
+    document.addEventListener('mouseup', closeDragElement);
+    document.addEventListener('mousemove', elementDrag);
+  }
+
+  function elementDrag(e) {
+    e.preventDefault();
+    pos1 = pos3 - e.clientX;
+    pos2 = pos4 - e.clientY;
+    pos3 = e.clientX;
+    pos4 = e.clientY;
+    
+    let newTop = el.offsetTop - pos2;
+    let newLeft = el.offsetLeft - pos1;
+    
+    const maxTop = window.innerHeight - el.offsetHeight;
+    const maxLeft = window.innerWidth - el.offsetWidth;
+    
+    el.style.top = `${Math.max(0, Math.min(newTop, maxTop))}px`;
+    el.style.left = `${Math.max(0, Math.min(newLeft, maxLeft))}px`;
+    el.style.bottom = 'auto';
+    el.style.right = 'auto';
+  }
+
+  function closeDragElement() {
+    document.removeEventListener('mouseup', closeDragElement);
+    document.removeEventListener('mousemove', elementDrag);
+  }
+
+  function dragTouchStart(e) {
+    if (e.target.closest('button') || e.target.closest('input')) return;
+    const touch = e.touches[0];
+    pos3 = touch.clientX;
+    pos4 = touch.clientY;
+    document.addEventListener('touchend', closeTouchDragElement);
+    document.addEventListener('touchmove', elementTouchDrag, { passive: false });
+  }
+
+  function elementTouchDrag(e) {
+    e.preventDefault();
+    const touch = e.touches[0];
+    pos1 = pos3 - touch.clientX;
+    pos2 = pos4 - touch.clientY;
+    pos3 = touch.clientX;
+    pos4 = touch.clientY;
+    
+    let newTop = el.offsetTop - pos2;
+    let newLeft = el.offsetLeft - pos1;
+    
+    const maxTop = window.innerHeight - el.offsetHeight;
+    const maxLeft = window.innerWidth - el.offsetWidth;
+    
+    el.style.top = `${Math.max(0, Math.min(newTop, maxTop))}px`;
+    el.style.left = `${Math.max(0, Math.min(newLeft, maxLeft))}px`;
+    el.style.bottom = 'auto';
+    el.style.right = 'auto';
+  }
+
+  function closeTouchDragElement() {
+    document.removeEventListener('touchend', closeTouchDragElement);
+    document.removeEventListener('touchmove', elementTouchDrag);
   }
 }
 
