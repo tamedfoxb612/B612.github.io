@@ -1173,22 +1173,18 @@ async function handleSignalingMessage(data) {
     return;
   }
 
-  if (data.type === 'arcade-input') {
-    const kbEvent = new KeyboardEvent(data.inputType, {
-        key: data.key,
-        code: data.code,
-        keyCode: data.keyCode,
-        which: data.which,
-        bubbles: true,
-        cancelable: true,
-        composed: true
+  if (data.type === 'arcade-input' || data.type === 'arcade-mouse') {
+    simulateHostArcadeEvent({
+      type: data.inputType || data.type,
+      key: data.key,
+      code: data.code,
+      keyCode: data.keyCode,
+      which: data.which,
+      x: data.x,
+      y: data.y,
+      button: data.button,
+      buttons: data.buttons
     });
-    const player = document.querySelector('#arcade-game ruffle-player');
-    if (player) {
-        player.dispatchEvent(kbEvent);
-        const canvas = player.shadowRoot?.querySelector('canvas');
-        if (canvas) canvas.dispatchEvent(kbEvent);
-    }
     return;
   }
 
@@ -2042,31 +2038,83 @@ function clearVideoMessages(broadcast = true) {
 /* ARCADE OVERLAY CONTROLLER & SIGNALING SYSTEM (Issue 1 & 2) */
 /* ========================================================== */
 
+function simulateHostArcadeEvent(data) {
+  const player = document.querySelector('#arcade-game ruffle-player');
+  if (!player) return;
+  const canvas = player.shadowRoot?.querySelector('canvas') || player;
+
+  if (data.type === 'keydown' || data.type === 'keyup') {
+    const kbEvent = new KeyboardEvent(data.type, {
+      key: data.key,
+      code: data.code,
+      keyCode: data.keyCode,
+      which: data.which,
+      bubbles: true,
+      cancelable: true,
+      composed: true
+    });
+    player.dispatchEvent(kbEvent);
+    if (canvas !== player) {
+      canvas.dispatchEvent(kbEvent);
+    }
+  } else if (['mousemove', 'mousedown', 'mouseup', 'click'].includes(data.type)) {
+    const rect = canvas.getBoundingClientRect();
+    const hostX = rect.left + data.x * rect.width;
+    const hostY = rect.top + data.y * rect.height;
+
+    const mouseEvent = new MouseEvent(data.type, {
+      clientX: hostX,
+      clientY: hostY,
+      screenX: hostX,
+      screenY: hostY,
+      button: data.button || 0,
+      buttons: data.buttons || 0,
+      bubbles: true,
+      cancelable: true,
+      composed: true,
+      view: window
+    });
+
+    let pointerType = '';
+    if (data.type === 'mousemove') pointerType = 'pointermove';
+    else if (data.type === 'mousedown') pointerType = 'pointerdown';
+    else if (data.type === 'mouseup') pointerType = 'pointerup';
+
+    canvas.dispatchEvent(mouseEvent);
+    player.dispatchEvent(mouseEvent);
+
+    if (pointerType) {
+      const pointerEvent = new PointerEvent(pointerType, {
+        clientX: hostX,
+        clientY: hostY,
+        screenX: hostX,
+        screenY: hostY,
+        button: data.button || 0,
+        buttons: data.buttons || 0,
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        view: window,
+        isPrimary: true
+      });
+      canvas.dispatchEvent(pointerEvent);
+      player.dispatchEvent(pointerEvent);
+    }
+  }
+}
+
 function setupArcadeDataChannel(channel) {
   if (!channel) return;
   channel.onopen = () => {
-    console.log('Arcade keyboard sync established!');
+    console.log('Arcade controller sync established!');
     showToast('🎮 Game controller channel connected!', 'success');
   };
   channel.onmessage = (event) => {
     try {
       const msg = JSON.parse(event.data);
-      if (msg.type === 'keydown' || msg.type === 'keyup') {
-        const kbEvent = new KeyboardEvent(msg.type, {
-          key: msg.key,
-          code: msg.code,
-          keyCode: msg.keyCode,
-          which: msg.which,
-          bubbles: true,
-          cancelable: true,
-          composed: true
-        });
-        const player = document.querySelector('#arcade-game ruffle-player');
-        if (player) {
-          player.dispatchEvent(kbEvent);
-          const canvas = player.shadowRoot?.querySelector('canvas');
-          if (canvas) canvas.dispatchEvent(kbEvent);
-        }
+      if (['keydown', 'keyup', 'mousemove', 'mousedown', 'mouseup', 'click'].includes(msg.type) || msg.type === 'arcade-mouse') {
+        const mappedType = msg.type === 'arcade-mouse' ? msg.inputType : msg.type;
+        simulateHostArcadeEvent({ ...msg, type: mappedType });
       } else if (msg.type === 'arcade-chat') {
         appendArcadeChatMessage(msg.sender, msg.text);
       }
@@ -2079,33 +2127,78 @@ function setupArcadeDataChannel(channel) {
 function handleArcadeGuestInput(e) {
   if (document.activeElement === document.getElementById('arcade-chat-input')) return;
 
-  const allowedKeys = [
-    'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight',
-    'KeyW', 'KeyA', 'KeyS', 'KeyD', 'w', 'a', 's', 'd', 'W', 'A', 'S', 'D'
-  ];
+  // Prevent default action (scrolling) for common gameplay keys
+  const preventKeys = ['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'];
+  if (preventKeys.includes(e.code) || preventKeys.includes(e.key)) {
+    e.preventDefault();
+  }
 
-  if (allowedKeys.includes(e.code) || allowedKeys.includes(e.key)) {
-    const payload = {
-      type: e.type,
+  // Skip system keys that could disrupt browser function
+  const ignoredKeys = ['F5', 'F11', 'F12'];
+  if (ignoredKeys.includes(e.key)) return;
+
+  const payload = {
+    type: e.type,
+    key: e.key,
+    code: e.code,
+    keyCode: e.keyCode,
+    which: e.which
+  };
+  
+  if (state.arcadeDataChannel && state.arcadeDataChannel.readyState === 'open') {
+    state.arcadeDataChannel.send(JSON.stringify(payload));
+  } else {
+    sendSignaling({
+      type: 'arcade-input',
+      inputType: e.type,
       key: e.key,
       code: e.code,
       keyCode: e.keyCode,
-      which: e.which
-    };
-    
-    if (state.arcadeDataChannel && state.arcadeDataChannel.readyState === 'open') {
-      state.arcadeDataChannel.send(JSON.stringify(payload));
-    } else {
-      sendSignaling({
-        type: 'arcade-input',
-        inputType: e.type,
-        key: e.key,
-        code: e.code,
-        keyCode: e.keyCode,
-        which: e.which,
-        sender: state.userName
-      });
-    }
+      which: e.which,
+      sender: state.userName
+    });
+  }
+}
+
+function handleArcadeGuestMouse(e) {
+  const arcadeGameVideo = document.getElementById('arcade-game-video');
+  if (!arcadeGameVideo) return;
+
+  const rect = arcadeGameVideo.getBoundingClientRect();
+  if (rect.width === 0 || rect.height === 0) return;
+
+  const x = (e.clientX - rect.left) / rect.width;
+  const y = (e.clientY - rect.top) / rect.height;
+
+  // Clamping coordinates
+  const clampedX = Math.max(0, Math.min(1, x));
+  const clampedY = Math.max(0, Math.min(1, y));
+
+  // If mousedown, prevent default to stop browser selection/drag behavior
+  if (e.type === 'mousedown') {
+    e.preventDefault();
+  }
+
+  const payload = {
+    type: e.type,
+    x: clampedX,
+    y: clampedY,
+    button: e.button,
+    buttons: e.buttons
+  };
+
+  if (state.arcadeDataChannel && state.arcadeDataChannel.readyState === 'open') {
+    state.arcadeDataChannel.send(JSON.stringify({ type: 'arcade-mouse', ...payload }));
+  } else {
+    sendSignaling({
+      type: 'arcade-mouse',
+      inputType: e.type,
+      x: clampedX,
+      y: clampedY,
+      button: e.button,
+      buttons: e.buttons,
+      sender: state.userName
+    });
   }
 }
 
@@ -2185,12 +2278,15 @@ async function initArcadeHost() {
     const canvas = player.shadowRoot?.querySelector('canvas');
     if (canvas) {
       clearInterval(checkCanvasInterval);
-      showToast('Game loaded! Capturing and broadcasting stream...', 'success');
+      showToast('Game loaded! Capturing and broadcasting stream (60 FPS)...', 'success');
       
       try {
-        const gameStream = canvas.captureStream(30);
+        const gameStream = canvas.captureStream(60);
         state.arcadeGameStream = gameStream;
         const gameTrack = gameStream.getVideoTracks()[0];
+        if (gameTrack && typeof gameTrack.applyConstraints === 'function') {
+          gameTrack.applyConstraints({ frameRate: 60 }).catch(e => console.warn(e));
+        }
         
         if (state.peerConnection) {
           if (state.arcadeGameSender) {
@@ -2231,6 +2327,13 @@ function initArcadeGuest() {
       arcadeGameVideo.srcObject = elements.remoteVideo.srcObject;
       arcadeGameVideo.play().catch(err => console.warn('Guest video play failed:', err));
     }
+
+    // Attach high-fidelity mouse interaction listeners to the game video screen
+    arcadeGameVideo.addEventListener('mousemove', handleArcadeGuestMouse);
+    arcadeGameVideo.addEventListener('mousedown', handleArcadeGuestMouse);
+    arcadeGameVideo.addEventListener('mouseup', handleArcadeGuestMouse);
+    arcadeGameVideo.addEventListener('click', handleArcadeGuestMouse);
+    arcadeGameVideo.addEventListener('contextmenu', e => e.preventDefault());
   }
 
   document.getElementById('arcade-guest-guide-panel')?.classList.remove('hidden');
@@ -2385,6 +2488,14 @@ async function leaveArcade(broadcast = true) {
 
   document.removeEventListener('keydown', handleArcadeGuestInput);
   document.removeEventListener('keyup', handleArcadeGuestInput);
+
+  const arcadeGameVideo = document.getElementById('arcade-game-video');
+  if (arcadeGameVideo) {
+    arcadeGameVideo.removeEventListener('mousemove', handleArcadeGuestMouse);
+    arcadeGameVideo.removeEventListener('mousedown', handleArcadeGuestMouse);
+    arcadeGameVideo.removeEventListener('mouseup', handleArcadeGuestMouse);
+    arcadeGameVideo.removeEventListener('click', handleArcadeGuestMouse);
+  }
 
   const arcadeOverlay = document.getElementById('arcade-overlay');
   if (arcadeOverlay) {
