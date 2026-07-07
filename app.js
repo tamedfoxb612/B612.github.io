@@ -1201,7 +1201,11 @@ async function handleSignalingMessage(data) {
       key: data.key,
       code: data.code,
       keyCode: data.keyCode,
-      which: data.which
+      which: data.which,
+      shiftKey: data.shiftKey,
+      ctrlKey: data.ctrlKey,
+      altKey: data.altKey,
+      metaKey: data.metaKey
     });
     return;
   }
@@ -2089,73 +2093,72 @@ function dispatchKeyboardToHost(msg) {
   const player = document.querySelector('#arcade-game ruffle-player');
   if (!player) return;
 
+  console.log('[Host] Simulating guest key:', msg.type, msg.key, msg.code);
+
   try {
     player.focus();
+    const canvas = player.shadowRoot?.querySelector('canvas') || player.querySelector('canvas');
+    if (canvas) {
+      canvas.focus();
+      if (!canvas.hasAttribute('tabindex')) {
+        canvas.setAttribute('tabindex', '0');
+      }
+    }
   } catch (e) {}
 
   const canvas = player.shadowRoot?.querySelector('canvas') || player.querySelector('canvas');
 
-  // Dispatch to canvas
-  if (canvas) {
+  const eventInit = {
+    key: msg.key || '',
+    code: msg.code || '',
+    keyCode: msg.keyCode || 0,
+    which: msg.which || 0,
+    ctrlKey: !!msg.ctrlKey,
+    shiftKey: !!msg.shiftKey,
+    altKey: !!msg.altKey,
+    metaKey: !!msg.metaKey,
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    view: window
+  };
+
+  const dispatchTo = (target) => {
+    if (!target) return;
     try {
-      const e = new KeyboardEvent(msg.type, {
-        key: msg.key,
-        code: msg.code,
-        keyCode: msg.keyCode,
-        which: msg.which,
-        bubbles: true,
-        cancelable: true,
-        composed: true,
-        view: window
-      });
-      canvas.dispatchEvent(e);
-    } catch (err) {}
+      const e = new KeyboardEvent(msg.type, eventInit);
+      
+      // Override properties directly on the event instance for strict libraries/WASM
+      Object.defineProperty(e, 'key', { get: () => msg.key || '' });
+      Object.defineProperty(e, 'code', { get: () => msg.code || '' });
+      Object.defineProperty(e, 'keyCode', { get: () => msg.keyCode || 0 });
+      Object.defineProperty(e, 'which', { get: () => msg.which || 0 });
+      
+      e.getModifierState = function(key) {
+        if (key === 'Shift') return !!msg.shiftKey;
+        if (key === 'Control') return !!msg.ctrlKey;
+        if (key === 'Alt') return !!msg.altKey;
+        if (key === 'Meta') return !!msg.metaKey;
+        return false;
+      };
+
+      target.dispatchEvent(e);
+    } catch (err) {
+      console.warn('Failed dispatch to target:', target, err);
+    }
+  };
+
+  // Dispatch to the shadow root's canvas (the inner Ruffle rendering target)
+  if (canvas) {
+    dispatchTo(canvas);
   }
 
   // Dispatch to player
-  try {
-    const e = new KeyboardEvent(msg.type, {
-      key: msg.key,
-      code: msg.code,
-      keyCode: msg.keyCode,
-      which: msg.which,
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-      view: window
-    });
-    player.dispatchEvent(e);
-  } catch (err) {}
+  dispatchTo(player);
 
-  // Dispatch to document to hit global listeners
-  try {
-    const e = new KeyboardEvent(msg.type, {
-      key: msg.key,
-      code: msg.code,
-      keyCode: msg.keyCode,
-      which: msg.which,
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-      view: window
-    });
-    document.dispatchEvent(e);
-  } catch (err) {}
-
-  // Dispatch to window
-  try {
-    const e = new KeyboardEvent(msg.type, {
-      key: msg.key,
-      code: msg.code,
-      keyCode: msg.keyCode,
-      which: msg.which,
-      bubbles: true,
-      cancelable: true,
-      composed: true,
-      view: window
-    });
-    window.dispatchEvent(e);
-  } catch (err) {}
+  // Dispatch to document & window
+  dispatchTo(document);
+  dispatchTo(window);
 }
 
 function simulateHostMouseEvent(type, relX, relY, button = 0, buttons = 0) {
@@ -2193,6 +2196,8 @@ function simulateHostMouseEvent(type, relX, relY, button = 0, buttons = 0) {
   const rect = canvas.getBoundingClientRect();
   const absX = rect.left + (relX * rect.width);
   const absY = rect.top + (relY * rect.height);
+  const offsetX = relX * rect.width;
+  const offsetY = relY * rect.height;
 
   // Position ghost mouse inside the absolute container
   const container = document.getElementById('arcade-game-container');
@@ -2214,7 +2219,15 @@ function simulateHostMouseEvent(type, relX, relY, button = 0, buttons = 0) {
     ghostMouse.style.background = 'radial-gradient(circle, rgba(255, 255, 255, 1) 0%, rgba(217, 140, 126, 1) 70%)';
   }
 
-  const mouseEvent = new MouseEvent(type, {
+  // Focus on click
+  if (type === 'mousedown' || type === 'click') {
+    try {
+      player.focus();
+      canvas.focus();
+    } catch (e) {}
+  }
+
+  const eventInit = {
     clientX: absX,
     clientY: absY,
     screenX: absX,
@@ -2225,12 +2238,51 @@ function simulateHostMouseEvent(type, relX, relY, button = 0, buttons = 0) {
     cancelable: true,
     composed: true,
     view: window
-  });
-  canvas.dispatchEvent(mouseEvent);
+  };
+
+  // Dispatch PointerEvent first (critical for modern Rust/WASM games like Ruffle)
+  const pointerType = type.replace('mouse', 'pointer');
+  try {
+    const pe = new PointerEvent(pointerType, {
+      ...eventInit,
+      pointerId: 1,
+      isPrimary: true,
+      width: 1,
+      height: 1,
+      pressure: buttons > 0 ? 0.5 : 0,
+      pointerType: 'mouse'
+    });
+    Object.defineProperty(pe, 'offsetX', { get: () => offsetX });
+    Object.defineProperty(pe, 'offsetY', { get: () => offsetY });
+    Object.defineProperty(pe, 'layerX', { get: () => offsetX });
+    Object.defineProperty(pe, 'layerY', { get: () => offsetY });
+    Object.defineProperty(pe, 'pageX', { get: () => absX + window.scrollX });
+    Object.defineProperty(pe, 'pageY', { get: () => absY + window.scrollY });
+    
+    canvas.dispatchEvent(pe);
+  } catch (err) {}
+
+  // Dispatch MouseEvent for standard HTML/JS fallback listeners
+  try {
+    const me = new MouseEvent(type, eventInit);
+    Object.defineProperty(me, 'offsetX', { get: () => offsetX });
+    Object.defineProperty(me, 'offsetY', { get: () => offsetY });
+    Object.defineProperty(me, 'layerX', { get: () => offsetX });
+    Object.defineProperty(me, 'layerY', { get: () => offsetY });
+    Object.defineProperty(me, 'pageX', { get: () => absX + window.scrollX });
+    Object.defineProperty(me, 'pageY', { get: () => absY + window.scrollY });
+    
+    canvas.dispatchEvent(me);
+  } catch (err) {}
 }
 
 function handleArcadeGuestInput(e) {
-  if (document.activeElement === document.getElementById('arcade-chat-input')) return;
+  // If typing in any input, textarea, or contenteditable, ignore gaming controls
+  const activeEl = document.activeElement;
+  const tag = activeEl?.tagName?.toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || activeEl?.isContentEditable) {
+    return;
+  }
 
   // Do not block standard browser shortcuts
   if (e.ctrlKey || e.metaKey || e.key === 'F5' || e.key === 'F11' || e.key === 'F12') {
@@ -2242,9 +2294,15 @@ function handleArcadeGuestInput(e) {
     key: e.key,
     code: e.code,
     keyCode: e.keyCode,
-    which: e.which
+    which: e.which,
+    shiftKey: e.shiftKey,
+    ctrlKey: e.ctrlKey,
+    altKey: e.altKey,
+    metaKey: e.metaKey
   };
   
+  console.log('[Guest] Sending key event:', e.type, e.key, e.code);
+
   if (state.arcadeDataChannel && state.arcadeDataChannel.readyState === 'open') {
     state.arcadeDataChannel.send(JSON.stringify(payload));
   } else {
@@ -2255,6 +2313,10 @@ function handleArcadeGuestInput(e) {
       code: e.code,
       keyCode: e.keyCode,
       which: e.which,
+      shiftKey: e.shiftKey,
+      ctrlKey: e.ctrlKey,
+      altKey: e.altKey,
+      metaKey: e.metaKey,
       sender: state.userName
     });
   }
@@ -2311,6 +2373,10 @@ function handleArcadeGuestMouse(e) {
     button: e.button,
     buttons: e.buttons
   };
+
+  if (e.type !== 'mousemove') {
+    console.log('[Guest] Sending mouse event:', e.type, 'button:', e.button, 'relX:', relX.toFixed(2), 'relY:', relY.toFixed(2));
+  }
 
   sendArcadeMouseEvent(payload);
 }
