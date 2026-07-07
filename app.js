@@ -778,7 +778,7 @@ function appendFeedItem(type, content, sender, timeObj, animate = true) {
       <div class="feed-meta"><span>${isSelf ? 'You sent a page' : `Page from <b>${sender}</b>`}</span> <span>${timeStr} <button class="msg-delete-btn" title="Delete message">×</button></span></div>
       <div class="feed-content" style="font-size: 1.5rem; margin: 4px 0;">❤️❤️❤️</div>
     `;
-    showCircleSpeechBubble(isSelf ? 'local' : 'remote', '❤️❤️❤️');
+    showCircleSpeechBubble(isSelf ? 'local' : sender, '❤️❤️❤️');
   } else {
     const cleanContent = content.replace(/^.*?: /, '');
     item.className = `feed-item ${isSelf ? 'self' : 'partner'} ${animate ? '' : 'no-animate'}`;
@@ -786,7 +786,7 @@ function appendFeedItem(type, content, sender, timeObj, animate = true) {
       <div class="feed-meta"><span class="sender">${isSelf ? 'You' : sender}</span> <span>${timeStr} <button class="msg-delete-btn" title="Delete message">×</button></span></div>
       <div class="feed-content">${cleanContent}</div>
     `;
-    showCircleSpeechBubble(isSelf ? 'local' : 'remote', cleanContent);
+    showCircleSpeechBubble(isSelf ? 'local' : sender, cleanContent);
   }
 
   if (isSelf) {
@@ -905,25 +905,18 @@ async function initiateVideoCall() {
       elements.localVideo.play().catch(e => console.debug('localVideo play note:', e));
     }
     elements.videoUi.classList.remove('hidden');
-    elements.remoteWaitingOverlay.style.display = 'flex';
+    if (elements.remoteWaitingOverlay) elements.remoteWaitingOverlay.style.display = 'flex';
     state.isCalling = true;
 
-    setupPeerConnection();
-
-    // Create WebRTC Offer
-    const offer = await state.peerConnection.createOffer();
-    offer.sdp = boostSdpBitrate(offer.sdp);
-    await state.peerConnection.setLocalDescription(offer);
-
+    // Broadcast our join so anyone in the call room will initiate peer connections with us
     sendSignaling({
-      type: 'offer',
-      sdp: offer,
+      type: 'join-call',
       sender: state.userName
     });
 
-    showToast('Initiating live video call...', 'info');
+    showToast('Entering live video call room...', 'info');
     clearVideoMessages();
-    triggerRemotePushNotification('📹 Incoming Video Date!', `${state.userName} is inviting you to a live video stream!`);
+    triggerRemotePushNotification('📹 Video Call Room Active!', `${state.userName} joined the live video call!`);
 
   } catch (err) {
     showToast('Could not access camera/microphone. Please check browser permissions.', 'error');
@@ -1144,23 +1137,36 @@ function sendSignaling(payload) {
 
 let speechBubbleTimeouts = { local: null, remote: null };
 
-function showCircleSpeechBubble(targetPane, text) {
+function showCircleSpeechBubble(sender, text) {
   if (state.circleSpeechEnabled === false) return;
-  const bubbleEl = targetPane === 'local' ? elements.localCircleSpeech : elements.remoteCircleSpeech;
-  const circleEl = targetPane === 'local' ? elements.localVideoContainer : elements.remoteVideoContainer;
+  
+  const isSelf = sender === 'local' || sender === 'You' || sender === state.userName;
+  const bubbleEl = isSelf ? elements.localCircleSpeech : elements.remoteCircleSpeech;
+  
+  // Find the circle container for this sender
+  let circleEl = isSelf ? elements.localVideoContainer : elements.remoteVideoContainer;
+  if (!isSelf && state.primaryPeer !== sender) {
+    const extraPane = document.getElementById(`remote-container-${sender}`);
+    if (extraPane) circleEl = extraPane;
+  }
+  
   if (!bubbleEl || !circleEl) return;
 
-  // Only show bubble if we are in circles mode or PiP/enlarged mode
   if (!elements.videoPanesWrapper?.classList.contains('layout-circles') && !elements.videoPanesWrapper?.classList.contains('layout-enlarged')) {
     return;
   }
 
   bubbleEl.textContent = text;
   bubbleEl.classList.remove('hidden');
+  
+  // Store the active container element ID as a property on the bubbleEl so updateSpeechBubblePositions knows where to align it!
+  bubbleEl.dataset.alignedToId = circleEl.id || (isSelf ? 'local-video-container' : 'remote-video-container');
+
   updateSpeechBubblePositions();
 
-  if (speechBubbleTimeouts[targetPane]) clearTimeout(speechBubbleTimeouts[targetPane]);
-  speechBubbleTimeouts[targetPane] = setTimeout(() => {
+  const paneType = isSelf ? 'local' : 'remote';
+  if (speechBubbleTimeouts[paneType]) clearTimeout(speechBubbleTimeouts[paneType]);
+  speechBubbleTimeouts[paneType] = setTimeout(() => {
     bubbleEl.classList.add('hidden');
   }, 6000);
 }
@@ -1172,9 +1178,15 @@ function updateSpeechBubblePositions() {
 
   ['local', 'remote'].forEach(pane => {
     const bubbleEl = pane === 'local' ? elements.localCircleSpeech : elements.remoteCircleSpeech;
-    const circleEl = pane === 'local' ? elements.localVideoContainer : elements.remoteVideoContainer;
-    if (!bubbleEl || !circleEl || bubbleEl.classList.contains('hidden')) return;
+    if (!bubbleEl || bubbleEl.classList.contains('hidden')) return;
 
+    let circleEl = pane === 'local' ? elements.localVideoContainer : elements.remoteVideoContainer;
+    if (bubbleEl.dataset.alignedToId) {
+      const aligned = document.getElementById(bubbleEl.dataset.alignedToId);
+      if (aligned) circleEl = aligned;
+    }
+
+    if (!circleEl) return;
     const circleRect = circleEl.getBoundingClientRect();
     const centerX = circleRect.left + circleRect.width / 2 - wrapperRect.left;
     const topY = circleRect.top - wrapperRect.top;
@@ -1186,6 +1198,11 @@ function updateSpeechBubblePositions() {
 
 async function handleSignalingMessage(data) {
   if (!data || data.sender === state.userName) return;
+
+  // Ignore targeted signaling messages that are not meant for us
+  if (data.target && data.target !== state.userName) {
+    return;
+  }
 
   if (data.type === 'play-together') {
     showToast(`🎮 Partner started a Play Together session! Opening Arcade overlay...`, 'success');
@@ -1260,7 +1277,20 @@ async function handleSignalingMessage(data) {
   }
 
   if (data.type === 'cam-toggle') {
-    if (elements.remoteCamOff) elements.remoteCamOff.classList.toggle('hidden', !data.isCamOff);
+    const peer = data.sender;
+    if (peer === state.primaryPeer) {
+      if (elements.remoteCamOff) {
+        elements.remoteCamOff.classList.toggle('hidden', !data.isCamOff);
+        const camOffText = elements.remoteCamOff.querySelector('.cam-off-text');
+        if (camOffText) camOffText.textContent = `${peer} Camera Off`;
+      }
+    } else {
+      const extraPane = document.getElementById(`remote-container-${peer}`);
+      if (extraPane) {
+        const placeholder = extraPane.querySelector('.cam-off-placeholder');
+        if (placeholder) placeholder.classList.toggle('hidden', !data.isCamOff);
+      }
+    }
     return;
   } else if (data.type === 'theme-change') {
     applyTheme(data.theme, data.themeLabel, false);
@@ -1284,6 +1314,24 @@ async function handleSignalingMessage(data) {
     return;
   }
 
+  if (data.type === 'join-call') {
+    if (state.isCalling) {
+      showToast(`📹 ${data.sender} is joining the video call room. Connecting...`, 'success');
+      const pc = setupPeerConnection(data.sender);
+      const offer = await pc.createOffer();
+      offer.sdp = boostSdpBitrate(offer.sdp);
+      await pc.setLocalDescription(offer);
+
+      sendSignaling({
+        type: 'offer',
+        target: data.sender,
+        sdp: offer,
+        sender: state.userName
+      });
+    }
+    return;
+  }
+
   if (data.type === 'offer') {
     if (!state.isCalling) {
       state.pendingOffer = data;
@@ -1294,49 +1342,77 @@ async function handleSignalingMessage(data) {
       return;
     }
 
-    showToast(`📹 Connecting partner video stream...`, 'success');
-    if (!state.peerConnection) setupPeerConnection();
+    showToast(`📹 Connecting video stream with ${data.sender}...`, 'success');
+    const pc = setupPeerConnection(data.sender);
 
-    await state.peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
-    const answer = await state.peerConnection.createAnswer();
+    await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+    const answer = await pc.createAnswer();
     answer.sdp = boostSdpBitrate(answer.sdp);
-    await state.peerConnection.setLocalDescription(answer);
+    await pc.setLocalDescription(answer);
 
     sendSignaling({
       type: 'answer',
+      target: data.sender,
       sdp: answer,
       sender: state.userName
     });
 
-    if (state.pendingIceCandidates && state.pendingIceCandidates.length > 0) {
-      for (const cand of state.pendingIceCandidates) {
-        try { await state.peerConnection.addIceCandidate(new RTCIceCandidate(cand)); } catch (e) {}
+    const pendingCandidates = state.pendingIceCandidates?.[data.sender] || [];
+    if (pendingCandidates.length > 0) {
+      for (const cand of pendingCandidates) {
+        try { await pc.addIceCandidate(new RTCIceCandidate(cand)); } catch (e) {}
       }
-      state.pendingIceCandidates = [];
+      state.pendingIceCandidates[data.sender] = [];
     }
+    return;
+  }
 
-  } else if (data.type === 'answer' && state.peerConnection) {
-    await state.peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
-    if (state.pendingIceCandidates && state.pendingIceCandidates.length > 0) {
-      for (const cand of state.pendingIceCandidates) {
-        try { await state.peerConnection.addIceCandidate(new RTCIceCandidate(cand)); } catch (e) {}
+  if (data.type === 'answer') {
+    const pc = state.peerConnections?.[data.sender];
+    if (pc) {
+      await pc.setRemoteDescription(new RTCSessionDescription(data.sdp));
+      const pendingCandidates = state.pendingIceCandidates?.[data.sender] || [];
+      if (pendingCandidates.length > 0) {
+        for (const cand of pendingCandidates) {
+          try { await pc.addIceCandidate(new RTCIceCandidate(cand)); } catch (e) {}
+        }
+        state.pendingIceCandidates[data.sender] = [];
       }
-      state.pendingIceCandidates = [];
     }
-  } else if (data.type === 'ice-candidate') {
-    if (state.peerConnection && state.peerConnection.remoteDescription) {
+    return;
+  }
+
+  if (data.type === 'ice-candidate') {
+    const pc = state.peerConnections?.[data.sender];
+    if (pc && pc.remoteDescription) {
       try {
-        await state.peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+        await pc.addIceCandidate(new RTCIceCandidate(data.candidate));
       } catch (e) {
         console.warn('ICE add error:', e);
       }
     } else {
-      if (!state.pendingIceCandidates) state.pendingIceCandidates = [];
-      state.pendingIceCandidates.push(data.candidate);
+      if (!state.pendingIceCandidates) state.pendingIceCandidates = {};
+      if (!state.pendingIceCandidates[data.sender]) state.pendingIceCandidates[data.sender] = [];
+      state.pendingIceCandidates[data.sender].push(data.candidate);
     }
-  } else if (data.type === 'end-call') {
-    showToast('Partner left the video call.', 'info');
-    cleanupMedia();
+    return;
+  }
+
+  if (data.type === 'end-call') {
+    showToast(`${data.sender} left the video call.`, 'info');
+    const pc = state.peerConnections?.[data.sender];
+    if (pc) {
+      try { pc.close(); } catch(e) {}
+      delete state.peerConnections[data.sender];
+    }
+    if (state.remoteStreams?.[data.sender]) {
+      delete state.remoteStreams[data.sender];
+    }
+    if (state.primaryPeer === data.sender) {
+      state.primaryPeer = null;
+    }
+    renderRemoteParticipants();
+    return;
   }
 }
 
@@ -1695,6 +1771,16 @@ function updateVideoLayout() {
       elements.remoteVideoContainer.style.top = '30px';
       elements.remoteVideoContainer.style.left = '30px';
     }
+    
+    // Position extra remote circles with a cascade offset
+    document.querySelectorAll('.extra-remote-pane').forEach((el, index) => {
+      el.classList.add('circle');
+      if (!el.style.top && !el.style.left) {
+        el.style.top = `${30 + (index + 1) * 45}px`;
+        el.style.left = `${30 + (index + 1) * 45}px`;
+      }
+    });
+
     if (!elements.localVideoContainer.style.bottom && !elements.localVideoContainer.style.right) {
       elements.localVideoContainer.style.bottom = '30px';
       elements.localVideoContainer.style.right = '30px';
@@ -1920,7 +2006,7 @@ function toggleTts() {
 // SCREEN SHARING FUNCTIONALITY (Shows Both Camera & Screen Feed)
 // =========================================================================
 async function toggleScreenShare() {
-  if (!state.peerConnection || !state.localStream) {
+  if ((!state.peerConnection && Object.keys(state.peerConnections || {}).length === 0) || !state.localStream) {
     showToast('Join or start a video call before screen sharing.', 'error');
     return;
   }
@@ -1931,9 +2017,13 @@ async function toggleScreenShare() {
       state.screenStream = null;
     }
     const camTrack = state.localStream.getVideoTracks()[0];
-    const sender = state.peerConnection.getSenders().find(s => s.track?.kind === 'video');
-    if (sender && camTrack) {
-      await sender.replaceTrack(camTrack);
+    const pcs = Object.values(state.peerConnections || {});
+    if (state.peerConnection && !pcs.includes(state.peerConnection)) pcs.push(state.peerConnection);
+    for (const pc of pcs) {
+      const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+      if (sender && camTrack) {
+        await sender.replaceTrack(camTrack).catch(() => {});
+      }
     }
     if (elements.localVideo) elements.localVideo.srcObject = state.localStream;
     if (elements.screenShareVideo) elements.screenShareVideo.srcObject = null;
@@ -1954,9 +2044,13 @@ async function toggleScreenShare() {
         if (state.isScreenSharing) toggleScreenShare();
       };
 
-      const sender = state.peerConnection.getSenders().find(s => s.track?.kind === 'video');
-      if (sender) {
-        await sender.replaceTrack(screenTrack);
+      const pcs = Object.values(state.peerConnections || {});
+      if (state.peerConnection && !pcs.includes(state.peerConnection)) pcs.push(state.peerConnection);
+      for (const pc of pcs) {
+        const sender = pc.getSenders().find(s => s.track?.kind === 'video');
+        if (sender) {
+          await sender.replaceTrack(screenTrack).catch(() => {});
+        }
       }
       if (elements.screenShareVideo) {
         elements.screenShareVideo.srcObject = state.screenStream;
